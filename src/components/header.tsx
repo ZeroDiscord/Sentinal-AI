@@ -52,6 +52,12 @@ export default function Header() {
               Dashboard
             </Link>
             <Link
+              href="/dashboard/map"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Live Map
+            </Link>
+            <Link
               href="/dashboard/report"
               className="text-muted-foreground hover:text-foreground"
             >
