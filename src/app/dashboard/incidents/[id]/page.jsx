@@ -2,11 +2,21 @@
 import { useEffect, useState, use as usePromise } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, User, MapPin } from "lucide-react";
+import { Calendar, User, MapPin, Pencil, Trash2 } from "lucide-react";
 import AIAnalysis from "@/components/ai-analysis";
 import IncidentForm from "@/components/incident-form";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export default function IncidentDetailsPage({ params }) {
   const unwrappedParams = usePromise(params);
@@ -16,6 +26,7 @@ export default function IncidentDetailsPage({ params }) {
   const [editing, setEditing] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -41,7 +52,6 @@ export default function IncidentDetailsPage({ params }) {
   }, [unwrappedParams.id]);
 
   const handleDelete = async () => {
-    if (!window.confirm("Are you sure you want to delete this incident?")) return;
     setDeleteLoading(true);
     setDeleteError(null);
     try {
@@ -60,6 +70,7 @@ export default function IncidentDetailsPage({ params }) {
       setDeleteError("Failed to delete incident");
     } finally {
       setDeleteLoading(false);
+      setShowDeleteDialog(false);
     }
   };
 
@@ -100,18 +111,40 @@ export default function IncidentDetailsPage({ params }) {
                 <p>{incident.description}</p>
               </div>
               {user && (
-                <div className="flex gap-2 mt-6">
-                  <button className="btn btn-primary" onClick={() => setEditing(true)}>
-                    Edit
-                  </button>
-                  <button
-                    className="btn btn-destructive"
-                    onClick={handleDelete}
-                    disabled={deleteLoading}
-                  >
-                    {deleteLoading ? "Deleting..." : "Delete"}
-                  </button>
-                  {deleteError && <div className="text-destructive ml-2">{deleteError}</div>}
+                <div className="flex gap-3 mt-8">
+                  <Button variant="default" size="sm" onClick={() => setEditing(true)} className="flex items-center gap-2">
+                    <Pencil className="w-4 h-4" /> Edit
+                  </Button>
+                  <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        disabled={deleteLoading}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {deleteLoading ? <span className="ml-1">Deleting...</span> : <span>Delete</span>}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Delete Incident</DialogTitle>
+                        <DialogDescription>
+                          Are you sure you want to delete this incident? This action cannot be undone.
+                        </DialogDescription>
+                      </DialogHeader>
+                      {deleteError && <div className="text-destructive mb-2">{deleteError}</div>}
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleteLoading}>
+                          Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
+                          {deleteLoading ? "Deleting..." : "Confirm"}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
             </CardContent>

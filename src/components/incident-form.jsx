@@ -1,6 +1,17 @@
+// File: src/components/incident-form.jsx
+
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"; // Import the custom Select component
 
 const initialState = {
   title: "",
@@ -31,8 +42,14 @@ export default function IncidentForm({ incident, onSuccess }) {
     }
   }, [incident]);
 
+  // Generic handler for standard input fields
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  // Specific handler for the Select component's value change
+  const handleSeverityChange = (value) => {
+    setForm({ ...form, severity: value });
   };
 
   const handleSubmit = async (e) => {
@@ -43,27 +60,18 @@ export default function IncidentForm({ incident, onSuccess }) {
     try {
       const token = user && (await user.getIdToken());
       let res, data;
-      if (incident) {
-        // Edit mode: PUT
-        res = await fetch(`/api/incidents/${incident.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(form),
-        });
-      } else {
-        // Create mode: POST
-        res = await fetch("/api/incidents", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(form),
-        });
-      }
+      const url = incident ? `/api/incidents/${incident.id}` : "/api/incidents";
+      const method = incident ? "PUT" : "POST";
+      
+      res = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+      
       data = await res.json();
       if (res.ok) {
         setSuccess(true);
@@ -73,7 +81,8 @@ export default function IncidentForm({ incident, onSuccess }) {
         setError(data.error || "Failed to save incident");
       }
     } catch (err) {
-      setError("Failed to save incident");
+      setError("An unexpected error occurred. Please try again.");
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -82,57 +91,57 @@ export default function IncidentForm({ incident, onSuccess }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4 glass-card p-6 mb-8">
       <h3 className="text-xl font-bold mb-2">{incident ? "Edit Incident" : "Report New Incident"}</h3>
-      <div className="flex flex-col gap-2">
-        <input
+      <div className="flex flex-col gap-4">
+        <Input
           name="title"
           value={form.title}
           onChange={handleChange}
           placeholder="Title"
-          className="input input-bordered"
           required
         />
-        <input
+        <Input
           name="type"
           value={form.type}
           onChange={handleChange}
           placeholder="Type (e.g. Vandalism, Bullying)"
-          className="input input-bordered"
           required
         />
-        <select
-          name="severity"
-          value={form.severity}
-          onChange={handleChange}
-          className="input input-bordered"
-        >
-          <option value="Low">Low</option>
-          <option value="Moderate">Moderate</option>
-          <option value="High">High</option>
-          <option value="Critical">Critical</option>
-        </select>
-        <textarea
+        
+        {/* Use the custom Select component with its specific handler */}
+        <Select value={form.severity} onValueChange={handleSeverityChange}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select Severity" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Low">Low</SelectItem>
+            <SelectItem value="Moderate">Moderate</SelectItem>
+            <SelectItem value="High">High</SelectItem>
+            <SelectItem value="Critical">Critical</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Textarea
           name="description"
           value={form.description}
           onChange={handleChange}
           placeholder="Description"
-          className="input input-bordered"
+          className="min-h-[120px]"
           required
         />
-        <input
+        <Input
           name="location"
           value={form.location}
           onChange={handleChange}
           placeholder="Location"
-          className="input input-bordered"
           required
         />
       </div>
       <Button type="submit" disabled={loading || !user}>
         {loading ? (incident ? "Updating..." : "Submitting...") : incident ? "Update Incident" : "Submit Incident"}
       </Button>
-      {error && <div className="text-destructive mt-2">{error}</div>}
-      {success && <div className="text-emerald-500 mt-2">Incident {incident ? "updated" : "reported"} successfully!</div>}
-      {!user && <div className="text-muted-foreground mt-2">Sign in to {incident ? "edit" : "report"} an incident.</div>}
+      {error && <div className="text-destructive mt-2 text-sm">{error}</div>}
+      {success && <div className="text-emerald-500 mt-2 text-sm">Incident {incident ? "updated" : "reported"} successfully!</div>}
+      {!user && <div className="text-muted-foreground mt-2 text-sm">Sign in to {incident ? "edit" : "report"} an incident.</div>}
     </form>
   );
-} 
+}
