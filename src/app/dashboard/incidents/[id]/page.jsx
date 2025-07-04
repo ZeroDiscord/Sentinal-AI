@@ -2,7 +2,7 @@
 import { useEffect, useState, use as usePromise } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, User, MapPin, Pencil, Trash2 } from "lucide-react";
+import { Calendar, User, MapPin, Pencil, Trash2, RefreshCw } from "lucide-react";
 import AIAnalysis from "@/components/ai-analysis";
 import IncidentForm from "@/components/incident-form";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,11 +17,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function IncidentDetailsPage({ params }) {
   const unwrappedParams = usePromise(params);
   const [incident, setIncident] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reanalyzing, setReanalyzing] = useState(false);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -74,7 +76,52 @@ export default function IncidentDetailsPage({ params }) {
     }
   };
 
-  if (loading) return <div>Loading incident...</div>;
+  async function handleReanalyze() {
+    setReanalyzing(true);
+    try {
+      const id = unwrappedParams.id.padStart(3, '0');
+      const response = await fetch(`/api/incidents/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setIncident(data.incident);
+        // Show success message or toast
+        console.log('Incident re-analyzed successfully');
+      } else {
+        console.error('Failed to re-analyze incident');
+      }
+    } catch (error) {
+      console.error('Error re-analyzing incident:', error);
+    } finally {
+      setReanalyzing(false);
+    }
+  }
+
+  if (loading) return (
+    <div className="space-y-8 max-w-4xl mx-auto">
+      <div className="glass-card p-8">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-6 w-24" />
+        </div>
+        <div className="flex gap-4 mb-6">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <Skeleton className="h-24 w-full mb-4" />
+        <Skeleton className="h-8 w-40" />
+      </div>
+    </div>
+  );
   if (error) return <div className="text-destructive">{error}</div>;
   if (!incident) return <div>No incident found.</div>;
 
@@ -101,14 +148,66 @@ export default function IncidentDetailsPage({ params }) {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-3xl font-bold">Incident Details</h1>
+                <Button 
+                  onClick={handleReanalyze} 
+                  disabled={reanalyzing}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-4 h-4 ${reanalyzing ? 'animate-spin' : ''}`} />
+                  {reanalyzing ? 'Re-Analyzing...' : 'Re-Analyze with AI'}
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-6">
-                <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /> Reported on {incident.date}</div>
-                <div className="flex items-center gap-2"><User className="w-4 h-4" /> By {incident.reportedBy} ({incident.reporterRole})</div>
-                <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> At {incident.location}</div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Reported on {incident.date ? new Date(incident.date).toLocaleString() : 'Unknown'}
+                </div>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  By {incident.reportedBy && incident.reportedBy !== 'anonymous' ? incident.reportedBy : 'Anonymous'}{incident.reporterRole ? ` (${incident.reporterRole})` : ''}
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" /> At {incident.location}
+                </div>
               </div>
               <div className="prose prose-invert max-w-none text-foreground/80">
                 <h3 className="text-foreground">Description</h3>
                 <p>{incident.description}</p>
+                {incident.summary && (
+                  <>
+                    <h4 className="mt-4 text-foreground">AI Summary</h4>
+                    <p>{incident.summary}</p>
+                  </>
+                )}
+                {incident.tags && incident.tags.length > 0 && (
+                  <>
+                    <h4 className="mt-4 text-foreground">AI Tags</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {incident.tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {incident.escalationReason && (
+                  <>
+                    <h4 className="mt-4 text-foreground">Escalation Reason</h4>
+                    <p>{incident.escalationReason}</p>
+                  </>
+                )}
+                {incident.aiSeverities && (
+                  <>
+                    <h4 className="mt-4 text-foreground">AI Severities (All Flows)</h4>
+                    <ul className="list-disc ml-6 text-sm">
+                      {Object.entries(incident.aiSeverities).map(([flow, sev]) => (
+                        <li key={flow}><span className="font-semibold">{flow}:</span> {sev || 'N/A'}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
               {user && (
                 <div className="flex gap-3 mt-8">

@@ -1,7 +1,7 @@
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/hooks/useAuth";
-import Header from "@/components/header";
+import HeaderConditional from "@/components/header-conditional";
 
 export const metadata = {
   title: 'SentinelAI',
@@ -20,7 +20,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
-          <Header />
+          <HeaderConditional />
           {children}
           <Toaster />
         </AuthProvider>

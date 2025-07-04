@@ -26,38 +26,45 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('[Auth] onAuthStateChanged user:', user);
       if (user) {
-        const idTokenResult = await user.getIdTokenResult(true);
-        if (user.isAnonymous) {
-          setRole('student');
-          setSchool(null);
-          setHostel(null);
-          console.log('[Auth] Anonymous user detected, role set to student');
-        } else {
-          setRole(idTokenResult.claims.role || 'student');
-          setSchool(idTokenResult.claims.school || null);
-          setHostel(idTokenResult.claims.hostel || null);
-          console.log('[Auth] Authenticated user, role:', idTokenResult.claims.role, 'school:', idTokenResult.claims.school, 'hostel:', idTokenResult.claims.hostel);
-          // Sync non-anonymous user to Firestore via API
-          try {
-            const res = await fetch(`/api/users/${user.uid}`);
-            if (res.status === 404) {
-              const token = await user.getIdToken();
-              await fetch('/api/users', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  email: user.email,
-                  displayName: user.displayName || "",
-                  role: idTokenResult.claims.role || "student",
-                }),
-              });
-            }
-          } catch (e) {
-            console.error("Failed to sync user to Firestore via API", e);
+        let firestoreRole = 'student';
+        let schoolVal = null;
+        let hostelVal = null;
+        try {
+          const res = await fetch(`/api/users/${user.uid}`);
+          if (res.ok) {
+            const data = await res.json();
+            firestoreRole = data.role || 'student';
+            schoolVal = data.school || null;
+            hostelVal = data.hostel || null;
           }
+        } catch (e) {
+          console.error('Failed to fetch user from Firestore', e);
+        }
+        setRole(firestoreRole);
+        setSchool(schoolVal);
+        setHostel(hostelVal);
+        // Sync user to Firestore if not present
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch(`/api/users/${user.uid}`);
+          if (res.status === 404) {
+            await fetch('/api/users', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                uid: user.uid,
+                email: user.email || '',
+                displayName: user.displayName || '',
+                role: firestoreRole,
+                isAnonymous: user.isAnonymous || false,
+              }),
+            });
+          }
+        } catch (e) {
+          console.error('Failed to sync user to Firestore via API', e);
         }
       } else {
         setRole('student');

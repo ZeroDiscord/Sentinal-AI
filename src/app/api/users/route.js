@@ -1,6 +1,6 @@
-import { db } from '@/src/lib/firebase';
-import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, setDoc, doc, getDoc } from 'firebase/firestore';
+
 
 export async function GET() {
   try {

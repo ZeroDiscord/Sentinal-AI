@@ -1,37 +1,40 @@
-import { db } from '@/src/lib/firebase';
+import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
-export async function GET(req, contextPromise) {
-  const { params } = await contextPromise;
+export async function GET(req, { params }) {
+  const { id } = await params;
   try {
-    const userRef = doc(db, 'users', params.id);
+    const userRef = doc(db, 'users', id);
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) {
       return new Response(JSON.stringify({ error: 'User not found' }), { status: 404 });
     }
     return new Response(JSON.stringify({ id: userSnap.id, ...userSnap.data() }), { status: 200 });
   } catch (error) {
+    console.error(error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
 
-export async function PUT(req, contextPromise) {
-  const { params } = await contextPromise;
+export async function PUT(req, { params }) {
+  const { id } = await params;
   try {
     const data = await req.json();
-    await setDoc(doc(db, 'users', params.id), data, { merge: true });
+    await setDoc(doc(db, 'users', id), data, { merge: true });
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (error) {
+    console.error(error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
 
-export async function DELETE(req, contextPromise) {
-  const { params } = await contextPromise;
+export async function DELETE(req, { params }) {
+  const { id } = await params;
   try {
-    await deleteDoc(doc(db, 'users', params.id));
+    await deleteDoc(doc(db, 'users', id));
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (error) {
+    console.error(error);
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 } 

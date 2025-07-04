@@ -45,7 +45,7 @@ export default function Header() {
   const isLanding = pathname === "/";
   const { user } = useAuth();
   return (
-    <header className="flex h-16 items-center gap-4 border-b border-border/10 bg-background/30 backdrop-blur-sm px-4 md:px-6 sticky top-0 z-30">
+    <header className="flex h-16 items-center gap-4 border-b border-border/10 bg-background/30 backdrop-blur-sm px-4 md:px-6 sticky top-0 z-30 w-full">
       {user && (
         <Sheet>
           <SheetTrigger asChild>
