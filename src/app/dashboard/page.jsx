@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import IncidentTableSkeleton from "@/components/incident-table-skeleton";
+import FullPageLoader from "@/components/ui/full-page-loader";
 
 export default function DashboardPage() {
   const [incidents, setIncidents] = useState([]);
@@ -42,7 +43,7 @@ export default function DashboardPage() {
   const pendingIncidents = incidents.filter(i => i.status !== 'resolved').length;
   const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length;
 
-  if (authLoading) return <div>Loading...</div>;
+  if (authLoading) return <FullPageLoader text="Loading authentication..." />;
 
   // Only show special instructions for students
   if (role === "student") {
