@@ -46,6 +46,7 @@ export async function POST(req) {
     let user = null;
     let displayName = 'Anonymous';
     let reporterRole = 'anonymous';
+    let userSchool = null;
 
     if (authHeader) {
         const token = authHeader.replace('Bearer ', '');
@@ -58,6 +59,7 @@ export async function POST(req) {
             const userData = userDoc.data();
             displayName = userData.displayName || userData.name || user.email || user.uid;
             reporterRole = userData.role || 'student';
+            userSchool = userData.school || null;
           } else {
             displayName = user.email || user.uid;
           }
@@ -76,8 +78,9 @@ export async function POST(req) {
     // Prepare initial data
     const incidentData = {
         ...data,
-      reportedBy: displayName,
-      reporterRole: reporterRole,
+        school: userSchool,
+        reportedBy: displayName,
+        reporterRole: reporterRole,
         status: 'pending_analysis',
         createdAt: serverTimestamp(),
         date: new Date().toISOString(),
@@ -196,53 +199,6 @@ Example:
       }
       ai = parsed || {};
       aiCache.set(descHash, ai);
-
-      // --- Vertex AI Priority Scoring ---
-      let priorityScore = null;
-      try {
-        const vertexResp = await fetch(process.env.VERTEX_PRIORITY_SCORE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            severity: ai.severity || data.severity || '',
-            category: ai.type || data.type || '',
-            description: data.description || '',
-          }),
-        });
-        if (vertexResp.ok) {
-          const vertexData = await vertexResp.json();
-          if (typeof vertexData.priorityScore === 'number') {
-            priorityScore = vertexData.priorityScore;
-          }
-        } else {
-          console.error('[VertexAI] Priority scoring failed:', await vertexResp.text());
-        }
-      } catch (e) {
-        console.error('[VertexAI] Error calling priority scoring function:', e);
-      }
-
-      // --- Save AI and priority score to Firestore ---
-      await updateDoc(doc(db, 'incidents', docRef.id), {
-        ...ai,
-        priorityScore: priorityScore,
-        status: 'open',
-        assignedTo: null,
-      });
-
-      // --- Audit Trail ---
-      try {
-        await addDoc(collection(db, 'ai_audit_trail'), {
-          createdAt: FieldValue.serverTimestamp ? FieldValue.serverTimestamp() : new Date(),
-          incidentHash: descHash,
-          prompt,
-          response: text,
-          parsed: ai,
-          user: user?.uid || null,
-          language,
-        });
-      } catch (e) {
-        console.error('[AI] Failed to write audit trail:', e);
-      }
     }
 
     // --- Field Validation & Sanitization ---
@@ -277,10 +233,23 @@ Example:
     }
     const aiSanitized = sanitizeAI(ai);
 
+    function calculatePriorityScore(ai) {
+      let score = 0;
+      if (ai.severity === 'critical') score = 1;
+      else if (ai.severity === 'high') score = 0.8;
+      else if (ai.severity === 'medium') score = 0.5;
+      else score = 0.2;
+      if (ai.escalate) score += 0.2;
+      return Math.min(1, score);
+    }
+
+    const priorityScore = calculatePriorityScore(ai);
+
     const incidentUpdate = {
       ...aiSanitized,
         status: 'analyzed',
-      aiRaw: ai
+      aiRaw: ai,
+      priorityScore,
     };
     await updateDoc(doc(db, 'incidents', docRef.id), incidentUpdate);
     console.log('[API] Incident updated with unified AI results.');

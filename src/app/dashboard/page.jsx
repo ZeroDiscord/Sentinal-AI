@@ -5,10 +5,33 @@ import { AlertCircle, CheckCircle, ShieldQuestion, FilePlus, Map as MapIcon } fr
 import IncidentTable from "@/components/incident-table";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import IncidentTableSkeleton from "@/components/incident-table-skeleton";
 import FullPageLoader from "@/components/ui/full-page-loader";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+
+const severityConfig = {
+  critical: { color: '#ef4444', label: 'Critical' },
+  high: { color: '#f97316', label: 'High' }, // Updated orange for better contrast
+  moderate: { color: '#f59e0b', label: 'Medium' }, // Updated amber/yellow
+  low: { color: '#3b82f6', label: 'Low' },
+  default: { color: '#6b7280', label: 'Unknown' },
+};
+
+// A smaller, reusable metric card component
+const MetricCard = ({ title, value, description, icon: Icon }) => (
+  <Card className="glass-card h-full flex flex-col justify-center p-6">
+    <div className="flex justify-between items-start">
+      <div className="flex flex-col">
+        <span className="text-sm font-medium text-muted-foreground">{title}</span>
+        <span className="text-3xl font-bold">{value}</span>
+      </div>
+      <Icon className="h-5 w-5 text-muted-foreground" />
+    </div>
+    <p className="text-xs text-muted-foreground mt-2">{description}</p>
+  </Card>
+);
 
 export default function DashboardPage() {
   const [incidents, setIncidents] = useState([]);
@@ -18,147 +41,146 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && role === undefined) return; // Wait for role
-    if (!authLoading && !["school_proctor", "cpo", "secretary", "warden", "member", "student"].includes(role)) {
-      router.replace("/dashboard/no-access");
-    }
-  }, [role, authLoading, router]);
-
-  // Fetch incidents only for allowed roles
-  useEffect(() => {
-    if (["school_proctor", "cpo", "secretary", "warden", "member"].includes(role)) {
-      setLoading(true);
-      const unsub = onSnapshot(collection(db, "incidents"), (snapshot) => {
+    if (authLoading) return;
+    const allowedRoles = ["school_proctor", "cpo", "secretary", "warden", "member"];
+    if (allowedRoles.includes(role)) {
+      const q = query(collection(db, "incidents"), orderBy("createdAt", "desc"));
+      const unsub = onSnapshot(q, (snapshot) => {
         setIncidents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setLoading(false);
       }, (err) => {
         setError("Failed to fetch incidents");
         setLoading(false);
+        console.error(err);
       });
       return () => unsub();
+    } else if (role === "student") {
+        setLoading(false);
     }
-  }, [role]);
+  }, [role, authLoading]);
 
+  // Data processing
   const totalIncidents = incidents.length;
-  const pendingIncidents = incidents.filter(i => i.status !== 'resolved').length;
-  const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length;
+  const activeIncidents = incidents.filter(i => i.status !== 'resolved').length;
+  const resolvedIncidents = totalIncidents - activeIncidents;
+  
+  const donutData = Object.entries(
+    incidents.reduce((acc, i) => {
+      const severity = (i.severity || 'default').toLowerCase().replace('medium', 'moderate');
+      acc[severity] = (acc[severity] || 0) + 1;
+      return acc;
+    }, {})
+  ).map(([name, value]) => ({
+    name: severityConfig[name]?.label || 'Unknown',
+    value,
+    color: severityConfig[name]?.color || severityConfig.default.color,
+  })).filter(item => item.value > 0);
 
-  if (authLoading) return <FullPageLoader text="Loading authentication..." />;
+  if (authLoading || (loading && role !== 'student')) {
+    return <FullPageLoader text="Loading Dashboard..." />;
+  }
 
-  // Only show special instructions for students
   if (role === "student") {
+    // Student-specific landing view
     return (
-      <div className="max-w-xl w-full mx-auto glass-card p-8 flex flex-col items-center justify-center shadow-lg border border-cyan-900/20 mt-12">
-        <h1 className="text-3xl font-bold mb-2 text-center">Welcome to SentinelAI!</h1>
-        <p className="text-muted-foreground mb-6 text-center">
-          You are signed in as a student. You can report incidents using the sidebar, or explore the live map. To view incident data and access more features, please contact your school admin.
-        </p>
-        <div className="w-full flex flex-col gap-4 mb-6">
-          <div className="flex items-start gap-3">
-            <FilePlus className="h-6 w-6 text-cyan-400 mt-1" />
-            <div>
-              <span className="font-semibold text-foreground">Report Incident:</span>
-              <span className="text-muted-foreground ml-1">Submit a new incident.</span>
+        <div className="flex flex-col items-center justify-center h-full p-4">
+            <div className="w-full max-w-lg text-center glass-card p-8 rounded-xl">
+                 <h1 className="text-3xl font-bold mb-2">Welcome to SentinelAI</h1>
+                 <p className="text-muted-foreground mb-6">As a student, you can report incidents and view the live map using the sidebar.</p>
+                 <Button onClick={() => router.push('/dashboard/report')} size="lg">
+                    <FilePlus className="mr-2 h-5 w-5" />
+                    Report an Incident
+                 </Button>
             </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <MapIcon className="h-6 w-6 text-cyan-400 mt-1" />
-            <div>
-              <span className="font-semibold text-foreground">Live Map:</span>
-              <span className="text-muted-foreground ml-1">View real-time incident locations.</span>
-            </div>
-          </div>
         </div>
-        <button
-          className="mt-2 px-6 py-3 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white font-semibold shadow-lg transition text-lg"
-          onClick={() => router.push('/dashboard/report')}
-        >
-          Report an Incident
-        </button>
-      </div>
     );
   }
 
-  // For all other roles, show the full dashboard (original layout)
   return (
-    <div className="w-full flex flex-col items-center justify-center min-h-[80vh]">
-      <div className="w-full max-w-6xl px-4 flex flex-col items-center">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, Proctor. Here's your incident overview.</p>
-        </div>
-        <div className="w-full grid gap-4 md:grid-cols-3 mb-10">
-          {loading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <Card className="glass-card animate-pulse" key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium bg-gray-300 h-4 w-24 rounded" />
-                  <div className="h-4 w-4 bg-gray-300 rounded-full" />
+    <>
+      <div className="w-full flex flex-col items-center justify-center min-h-[80vh]">
+        <div className="w-full max-w-6xl px-4 flex flex-col items-center">
+          <div className="flex flex-col gap-8 p-4 md:p-6">
+            <div className="text-left">
+              <h1 className="text-3xl font-bold">Dashboard</h1>
+              <p className="text-muted-foreground">Welcome back. Here's your incident overview.</p>
+            </div>
+
+            {/* Top Section: Grid for Chart and Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              
+              {/* Donut Chart */}
+              <Card className="glass-card md:col-span-2 lg:col-span-1">
+                <CardHeader>
+                  <CardTitle className="text-base">Incidents by Severity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-8 w-16 bg-gray-300 rounded mb-2" />
-                  <div className="h-3 w-20 bg-gray-200 rounded" />
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        labelLine={false}
+                      >
+                        {donutData.map((entry) => (
+                          <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        cursor={{ fill: 'hsl(var(--secondary))' }}
+                        contentStyle={{
+                          background: 'hsl(var(--background) / 0.8)',
+                          backdropFilter: 'blur(4px)',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: 'var(--radius)',
+                        }}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem' }}/>
+                    </PieChart>
+                  </ResponsiveContainer>
                 </CardContent>
               </Card>
-            ))
-          ) : (
-            <>
-              <Card className="glass-card">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Total Incidents
-                  </CardTitle>
-                  <ShieldQuestion className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalIncidents}</div>
-                  <p className="text-xs text-muted-foreground">
-                    All reported incidents
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="glass-card">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Active Incidents
-                  </CardTitle>
-                  <AlertCircle className="h-4 w-4 text-amber-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{pendingIncidents}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Pending or in-progress
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="glass-card">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Resolved Incidents</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-emerald-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{resolvedIncidents}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Successfully closed cases
-                  </p>
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </div>
-        <div className="w-full">
-          <h2 className="text-2xl font-bold mb-4">Recent Incidents</h2>
-          {loading ? (
-            <IncidentTableSkeleton />
-          ) : error ? (
-            <div className="text-destructive">{error}</div>
-          ) : incidents.length === 0 ? (
-            <div className="text-muted-foreground">No incidents found.</div>
-          ) : (
-            <IncidentTable incidents={incidents} />
-          )}
+
+              {/* Metric Cards */}
+              <MetricCard title="Total Incidents" value={totalIncidents} description="All reported incidents" icon={ShieldQuestion}/>
+              <MetricCard title="Active Incidents" value={activeIncidents} description="Pending or in-progress" icon={AlertCircle} />
+              <MetricCard title="Resolved Incidents" value={resolvedIncidents} description="Successfully closed cases" icon={CheckCircle} />
+            </div>
+
+            {/* Bottom Section: Recent Incidents Table */}
+            <div>
+              <h2 className="text-2xl font-bold mb-4">Recent Incidents</h2>
+              {loading ? (
+                <IncidentTableSkeleton />
+              ) : error ? (
+                <div className="text-destructive glass-card p-4 rounded-lg">{error}</div>
+              ) : incidents.length === 0 ? (
+                <div className="text-muted-foreground text-center glass-card p-8 rounded-lg">No incidents found.</div>
+              ) : (
+                <IncidentTable incidents={incidents} />
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+      <style jsx global>{`
+        .recharts-tooltip-item,
+        .recharts-tooltip-label {
+          color: #fff !important;
+        }
+        .recharts-default-tooltip {
+          background: hsl(var(--background), 0.95) !important;
+          border: 1px solid hsl(var(--border)) !important;
+          border-radius: var(--radius) !important;
+          backdrop-filter: blur(4px) !important;
+        }
+      `}</style>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 // File: src/app/api/incidents/[id]/route.js
 
 import { NextResponse } from 'next/server';
-import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, addDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { verifyIdToken } from '@/lib/server-auth';
 import { callGemini } from '@/ai/gemini';
@@ -191,7 +191,9 @@ Example:
       return {
         type: typeof ai.type === 'string' && ai.type.length < 100 ? ai.type : (incident.type || 'Other'),
         tags: Array.isArray(ai.tags) ? ai.tags.filter(t => typeof t === 'string' && t.length < 50) : [],
-        severity: ['low','medium','high','critical'].includes((ai.severity||'').toLowerCase()) ? ai.severity.toLowerCase() : 'low',
+        severity: ['low','medium','high','critical'].includes((ai.severity||'').toLowerCase())
+          ? (ai.severity||'').toLowerCase() === 'moderate' ? 'medium' : (ai.severity||'').toLowerCase()
+          : 'low',
         escalate: typeof ai.escalate === 'boolean' ? ai.escalate : false,
         summary: typeof ai.summary === 'string' && ai.summary.length < 1000 ? ai.summary : '',
         escalationReason: typeof ai.escalationReason === 'string' && ai.escalationReason.length < 500 ? ai.escalationReason : '',
@@ -207,9 +209,22 @@ Example:
 
     const aiSanitized = sanitizeAI(parsed || {});
 
+    function calculatePriorityScore(ai) {
+      let score = 0;
+      if (ai.severity === 'critical') score = 1;
+      else if (ai.severity === 'high') score = 0.8;
+      else if (ai.severity === 'medium') score = 0.5;
+      else score = 0.2;
+      if (ai.escalate) score += 0.2;
+      return Math.min(1, score);
+    }
+
+    const priorityScore = calculatePriorityScore(aiSanitized);
+
     // Update incident
     const incidentUpdate = {
       ...aiSanitized,
+      priorityScore,
       status: 'analyzed',
       aiRaw: parsed || {},
       reanalyzedAt: serverTimestamp(),
@@ -289,6 +304,12 @@ export async function PATCH(request, { params }) {
     const update = {};
     if (body.assignedTo !== undefined) update.assignedTo = body.assignedTo;
     if (body.status === 'resolved') update.status = 'resolved';
+    if (Array.isArray(body.readBy) && user.uid) {
+      const current = incidentSnap.data().readBy || [];
+      if (!current.includes(user.uid)) {
+        update.readBy = [...current, user.uid];
+      }
+    }
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }

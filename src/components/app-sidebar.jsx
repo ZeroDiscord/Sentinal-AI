@@ -9,17 +9,33 @@ import { useAuth } from "@/hooks/useAuth";
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["school_proctor", "cpo", "secretary", "warden", "member"] },
   { href: "/dashboard/map", icon: Map, label: "Live Map", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
-  { href: "/dashboard/my-reports", icon: FilePlus, label: "My Reports", roles: ["student"] },
+  { href: "/dashboard/my-reports", icon: FilePlus, label: "My Reports", roles: ["student", "member", "secretary"] },
   { href: "/dashboard/report", icon: FilePlus, label: "Report Incident", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
   { href: "/dashboard/admin", icon: Shield, label: "Admin Panel", roles: ["cpo"] },
   { href: "/dashboard/profile", icon: User, label: "Profile", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
 ];
 
 export default function AppSidebar({ collapsed, setCollapsed }) {
-  const { user, role, signOut } = useAuth();
+  const { user, role, signOut, loading } = useAuth();
   const pathname = usePathname();
 
-  const filteredNavItems = navItems.filter(item => item.roles.includes(role));
+  if (loading) {
+    // Optionally render a sidebar skeleton here
+    return null;
+  }
+
+  const filteredNavItems = navItems.filter(item => {
+    if (!user) {
+      return item.label === 'Live Map' || item.label === 'Report Incident';
+    }
+    if (user.isAnonymous) {
+      return item.label !== 'My Reports' && item.label !== 'Admin Panel';
+    }
+    if (item.label === 'Admin Panel') {
+      return role === 'cpo';
+    }
+    return item.roles.includes(role);
+  });
 
   return (
     <aside

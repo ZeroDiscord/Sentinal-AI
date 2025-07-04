@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, use as usePromise } from "react";
+import { useEffect, useState, use as usePromise, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, User, MapPin, Pencil, Trash2, RefreshCw } from "lucide-react";
@@ -22,6 +22,20 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import Image from "next/image";
+
+const CAMPUS_MAPS = {
+  bidholi: {
+    name: "Bidholi",
+    image: "/maps/upes-bidholi.png",
+    satellite: "/maps/upes-bidholi_sat.png",
+  },
+  kandoli: {
+    name: "Kandoli",
+    image: "/maps/upes-kandoli.png",
+    satellite: "/maps/upes-kandoli_sat.png",
+  },
+};
 
 export default function IncidentDetailsPage({ params }) {
   const unwrappedParams = usePromise(params);
@@ -41,6 +55,11 @@ export default function IncidentDetailsPage({ params }) {
   const [assignTo, setAssignTo] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
   const [resolveLoading, setResolveLoading] = useState(false);
+  const [mapType, setMapType] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragging = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
 
   const fetchIncident = async () => {
     setLoading(true);
@@ -98,16 +117,20 @@ export default function IncidentDetailsPage({ params }) {
     setReanalyzing(true);
     try {
       const id = unwrappedParams.id.padStart(3, '0');
+      const token = user && (await user.getIdToken());
       const response = await fetch(`/api/incidents/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
       });
       
       if (response.ok) {
         const data = await response.json();
         setIncident(data.incident);
+        // Force re-fetch to get the latest data from Firestore
+        await fetchIncident();
         // Show success message or toast
         console.log('Incident re-analyzed successfully');
       } else {
@@ -157,6 +180,31 @@ export default function IncidentDetailsPage({ params }) {
       setResolveLoading(false);
     }
   }
+
+  // Handlers for zoom and pan
+  const handleWheel = (e) => {
+    e.preventDefault();
+    setZoom(z => Math.max(1, Math.min(3, z + (e.deltaY < 0 ? 0.1 : -0.1))));
+  };
+  const handleMouseDown = (e) => {
+    dragging.current = true;
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const handleMouseUp = () => {
+    dragging.current = false;
+  };
+  const handleMouseMove = (e) => {
+    if (!dragging.current) return;
+    setOffset(off => ({
+      x: off.x + (e.clientX - lastPos.current.x),
+      y: off.y + (e.clientY - lastPos.current.y),
+    }));
+    lastPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const handleDoubleClick = () => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  };
 
   if (loading) return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -209,6 +257,80 @@ export default function IncidentDetailsPage({ params }) {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Map display for this incident with toggle and zoom */}
+              {incident.campus && incident.marker && (
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-semibold">Location on Map ({CAMPUS_MAPS[incident.campus]?.name})</span>
+                    <Button
+                      type="button"
+                      variant={((mapType ?? incident.mapType) !== 'satellite') ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setMapType('default')}
+                    >
+                      Default
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={((mapType ?? incident.mapType) === 'satellite') ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setMapType('satellite')}
+                    >
+                      Satellite
+                    </Button>
+                    <span className="ml-auto text-xs text-muted-foreground">Scroll to zoom, drag to pan, double-click to reset</span>
+                  </div>
+                  <div
+                    className="relative mx-auto select-none"
+                    style={{
+                      width: "100%",
+                      maxWidth: "1200px",
+                      aspectRatio: "16/9",
+                      borderRadius: "0.75rem",
+                      overflow: "hidden",
+                      border: "1px solid var(--border-color)",
+                      cursor: zoom ? "grab" : "default",
+                    }}
+                    onWheel={handleWheel}
+                    onMouseDown={handleMouseDown}
+                    onMouseUp={handleMouseUp}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseUp}
+                    onDoubleClick={handleDoubleClick}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
+                        transition: dragging.current ? "none" : "transform 0.2s",
+                        position: "relative",
+                      }}
+                    >
+                      <Image
+                        src={(mapType ?? incident.mapType) === 'satellite' ? CAMPUS_MAPS[incident.campus].satellite : CAMPUS_MAPS[incident.campus].image}
+                        alt={`${CAMPUS_MAPS[incident.campus]?.name} Campus Map ${(mapType ?? incident.mapType) === 'satellite' ? '(Satellite)' : ''}`}
+                        fill
+                        className="object-contain"
+                        priority
+                        draggable={false}
+                        style={{ userSelect: "none", pointerEvents: "none" }}
+                      />
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: `${incident.marker.y}%`,
+                          left: `${incident.marker.x}%`,
+                          transform: "translate(-50%, -50%)",
+                          zIndex: 10,
+                          pointerEvents: "none",
+                        }}
+                        className="inline-block w-6 h-6 bg-red-600 rounded-full border-2 border-white shadow-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold">Incident Details</h1>
                 <div className="flex gap-2">
@@ -357,7 +479,26 @@ export default function IncidentDetailsPage({ params }) {
         )}
       </div>
 
-      <AIAnalysis reportText={incident.description} />
+      {/* AI Analysis Section */}
+      <div className="mb-8">
+        {!incident?.summary && !incident?.aiAnalysis && (
+          <Button onClick={handleReanalyze} disabled={reanalyzing} className="mb-4">
+            {reanalyzing ? 'Generating AI Analysis...' : 'Generate AI Analysis'}
+          </Button>
+        )}
+        <AIAnalysis analysis={
+          incident?.aiAnalysis ||
+          (incident?.summary && {
+            summary: incident.summary,
+            tags: incident.tags,
+            severity: incident.severity,
+            escalate: incident.escalate,
+            escalationReason: incident.escalationReason,
+            type: incident.type,
+            confidence: incident.confidence
+          })
+        } isLoading={reanalyzing} />
+      </div>
     </div>
   );
 }

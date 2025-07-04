@@ -1,43 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Lightbulb, AlertTriangle, Check, Tags, ShieldAlert, ShieldCheck } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
-export default function AIAnalysis({ reportText }) {
-  const [analysis, setAnalysis] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  // Mock data for demonstration
-  useEffect(() => {
-    if (!reportText) return;
-    
-    // Simulate loading
-    setIsLoading(true);
-    setTimeout(() => {
-      setAnalysis({
-        summary: "Report of a couple engaging in public indecency on university grounds, specifically involving extensive breast grabbing, which is perceived as bringing shame to the university.",
-        tags: ["public-indecency", "inappropriate behavior", "sexual misconduct", "campus conduct", "university reputation"],
-        severity: "High",
-        escalate: true,
-        escalationReason: "The incident involves gross public indecency and potential sexual misconduct, which requires immediate attention.",
-        type: "Sexual Misconduct / Public Indecency",
-        confidence: {
-          summary: 0.95,
-          tags: 0.88,
-          severity: 0.92,
-          escalate: 0.94,
-          type: 0.90
-        }
-      });
-      setIsLoading(false);
-    }, 1000);
-  }, [reportText]);
-
+export default function AIAnalysis({ analysis, isLoading = false, error = null }) {
   const getConfidenceColor = (score) => {
     if (score >= 0.8) return "text-emerald-400";
     if (score >= 0.6) return "text-yellow-400";
@@ -57,6 +26,15 @@ export default function AIAnalysis({ reportText }) {
       case 'low': return 'bg-green-500/20 text-green-400 border-green-500/30';
       default: return 'bg-slate-700/50 text-slate-300 border-slate-600/50';
     }
+  };
+
+  const normalizeSeverity = (severity) => {
+    const sev = (severity || '').toLowerCase();
+    if (sev === 'critical') return 'Critical';
+    if (sev === 'high') return 'High';
+    if (sev === 'medium' || sev === 'moderate') return 'Medium';
+    if (sev === 'low') return 'Low';
+    return 'Low';
   };
 
   const ConfidenceIndicator = ({ score, label }) => (
@@ -217,8 +195,8 @@ export default function AIAnalysis({ reportText }) {
           confidence={analysis.confidence?.severity}
         >
           <div className="flex items-center gap-3">
-            <Badge className={`${getSeverityColor(analysis.severity)} text-sm px-3 py-1.5 capitalize font-medium`}>
-              {analysis.severity}
+            <Badge className={`${getSeverityColor(normalizeSeverity(analysis.severity))} text-sm px-3 py-1.5 capitalize font-medium`}>
+              {normalizeSeverity(analysis.severity)}
             </Badge>
             <span className="text-xs text-slate-400">
               Risk Level Assessment

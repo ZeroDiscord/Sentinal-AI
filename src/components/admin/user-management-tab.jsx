@@ -21,10 +21,21 @@ const ROLE_OPTIONS = [
   { value: "cpo", label: "CPO" }
 ];
 
+const SCHOOL_OPTIONS = [
+  'Administration',
+  'School of Computer Science',
+  'School of Engineering',
+  'School of Business',
+  'School of Law',
+  'School of Design',
+  'School of Health Sciences',
+];
+
 export default function UserManagementTab() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [schoolFilter, setSchoolFilter] = useState("all");
   const [editUser, setEditUser] = useState(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState({ role: "", school: "", hostel: "" });
@@ -37,15 +48,17 @@ export default function UserManagementTab() {
     return () => unsub();
   }, []);
 
-  const filteredUsers = useMemo(() => {
-    return users.filter(user => {
-      const matchesSearch =
-        user.name?.toLowerCase().includes(search.toLowerCase()) ||
-        user.email?.toLowerCase().includes(search.toLowerCase());
-      const matchesRole = roleFilter === 'all' ? true : user.role === roleFilter;
-      return matchesSearch && matchesRole;
-    });
-  }, [users, search, roleFilter]);
+  // Filter out anonymous users
+  const filteredUsers = users.filter(u => !u.isAnonymous && u.email);
+
+  const displayedUsers = filteredUsers.filter(user => {
+    const matchesSearch =
+      user.displayName?.toLowerCase().includes(search.toLowerCase()) ||
+      user.email?.toLowerCase().includes(search.toLowerCase());
+    const matchesRole = roleFilter === 'all' ? true : user.role === roleFilter;
+    const matchesSchool = schoolFilter === 'all' ? true : user.school === schoolFilter;
+    return matchesSearch && matchesRole && matchesSchool;
+  });
 
   function openEditDialog(user) {
     setEditUser(user);
@@ -91,6 +104,17 @@ export default function UserManagementTab() {
             ))}
           </SelectContent>
         </Select>
+        <Select value={schoolFilter} onValueChange={setSchoolFilter}>
+          <SelectTrigger className="w-48 glass-card">
+            <SelectValue placeholder="Filter by school" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Schools</SelectItem>
+            {SCHOOL_OPTIONS.map(opt => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="glass-card overflow-x-auto">
         <Table>
@@ -104,7 +128,7 @@ export default function UserManagementTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.map(user => (
+            {displayedUsers.map(user => (
               <TableRow key={user.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -167,7 +191,16 @@ export default function UserManagementTab() {
             </div>
             <div>
               <label className="block text-sm mb-1">School</label>
-              <Input value={editForm.school} onChange={e => setEditForm(f => ({ ...f, school: e.target.value }))} className="glass-card" />
+              <Select value={editForm.school || ""} onValueChange={val => setEditForm(f => ({ ...f, school: val }))}>
+                <SelectTrigger className="glass-card">
+                  <SelectValue placeholder="Select School" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHOOL_OPTIONS.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="block text-sm mb-1">Hostel</label>

@@ -43,6 +43,9 @@ export default function IncidentTable({ incidents, onActionComplete }) {
   }, [assignDialogOpen]);
   const assignableUsers = users.filter(u => ["member", "secretary"].includes(u.role));
 
+  // Sort incidents by priorityScore descending
+  const sortedIncidents = [...incidents].sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+
   async function handleAssign() {
     if (!selectedIncident) return;
     setAssignLoading(true);
@@ -90,7 +93,7 @@ export default function IncidentTable({ incidents, onActionComplete }) {
         return "bg-red-600/80 border-red-500 text-white hover:bg-red-600/90";
       case "High":
         return "bg-orange-500/80 border-orange-400 text-white hover:bg-orange-500/90";
-      case "Moderate":
+      case "Medium":
         return "bg-amber-500/80 border-amber-400 text-white hover:bg-amber-500/90";
       case "Low":
         return "bg-blue-500/80 border-blue-400 text-white hover:bg-blue-500/90";
@@ -127,20 +130,35 @@ export default function IncidentTable({ incidents, onActionComplete }) {
             <TableHead>Priority</TableHead>
             <TableHead className="hidden lg:table-cell">Reported By</TableHead>
             <TableHead className="hidden md:table-cell">Date</TableHead>
+            <TableHead>School</TableHead>
             <TableHead>Assigned To</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {incidents.map((incident) => (
+          {sortedIncidents.map((incident) => (
             <TableRow key={incident.id} className="hover:bg-white/5 border-b-white/10 last:border-b-0 cursor-pointer" onClick={() => handleViewDetails(incident.id)}>
               <TableCell className="font-medium">{incident.id}</TableCell>
               <TableCell className="hidden md:table-cell">{incident.type}</TableCell>
               <TableCell>
-                <Badge className={cn("text-xs font-semibold", getSeverityBadgeClass(incident.severity))}>
-                  {incident.severity}
-                </Badge>
+                {(() => {
+                  const normalizedSeverity = incident.severity
+                    ? (() => {
+                        const sev = incident.severity.toLowerCase();
+                        if (sev === "critical") return "Critical";
+                        if (sev === "high") return "High";
+                        if (sev === "medium" || sev === "moderate") return "Medium";
+                        if (sev === "low") return "Low";
+                        return "Low";
+                      })()
+                    : "Low";
+                  return (
+                    <Badge className={cn("text-xs font-semibold", getSeverityBadgeClass(normalizedSeverity))}>
+                      {normalizedSeverity}
+                    </Badge>
+                  );
+                })()}
               </TableCell>
               <TableCell>
                 {typeof incident.priorityScore === 'number' ? (
@@ -151,6 +169,7 @@ export default function IncidentTable({ incidents, onActionComplete }) {
               </TableCell>
               <TableCell className="hidden lg:table-cell">{incident.reportedBy}</TableCell>
               <TableCell className="hidden md:table-cell">{incident.date}</TableCell>
+              <TableCell>{incident.school || '-'}</TableCell>
               <TableCell>{incident.assignedTo || <span className="text-muted-foreground">Unassigned</span>}</TableCell>
               <TableCell>
                  <Badge variant="outline" className={cn("text-xs", getStatusBadgeClass(incident.status))}>

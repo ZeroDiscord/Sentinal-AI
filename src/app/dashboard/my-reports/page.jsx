@@ -28,6 +28,15 @@ export default function MyReportsPage() {
     fetchMyIncidents();
   }, [user]);
 
+  const normalizeSeverity = (severity) => {
+    const sev = (severity || '').toLowerCase();
+    if (sev === 'critical') return 'Critical';
+    if (sev === 'high') return 'High';
+    if (sev === 'medium' || sev === 'moderate') return 'Medium';
+    if (sev === 'low') return 'Low';
+    return 'Low';
+  };
+
   if (!user) return null;
   if (user.isAnonymous) {
     return (

@@ -130,7 +130,9 @@ Example:
         return {
           type: typeof ai.type === 'string' && ai.type.length < 100 ? ai.type : 'Other',
           tags: Array.isArray(ai.tags) ? ai.tags.filter(t => typeof t === 'string' && t.length < 50) : [],
-          severity: ['low','medium','high','critical'].includes((ai.severity||'').toLowerCase()) ? ai.severity.toLowerCase() : 'low',
+          severity: ['low','medium','high','critical'].includes((ai.severity||'').toLowerCase())
+            ? (ai.severity||'').toLowerCase() === 'moderate' ? 'medium' : (ai.severity||'').toLowerCase()
+            : 'low',
           escalate: typeof ai.escalate === 'boolean' ? ai.escalate : false,
           summary: typeof ai.summary === 'string' && ai.summary.length < 1000 ? ai.summary : '',
           escalationReason: typeof ai.escalationReason === 'string' && ai.escalationReason.length < 500 ? ai.escalationReason : '',

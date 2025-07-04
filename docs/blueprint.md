@@ -14,7 +14,7 @@
 - Primary Background: Deep Navy Glass (#0B0F19). Usage: App background, modals, sidebars. Gives a dark, futuristic baseline for glassmorphism
 - Glass Surface: Translucent Ice Gray (rgba(255, 255, 255, 0.06)) with blur: backdrop-filter: blur(12px);. Usage: Cards, incident tiles, info overlays
 - Accent: Google Blue (#4285F4). Usage: Primary buttons, links, key highlights. Symbolizes AI, trust, and ties into Google's ecosystem
-- Alert: Deep Amber (#F4B400). Usage: Incident priority badges (moderate risk), tooltips
+- Alert: Deep Amber (#F4B400). Usage: Incident priority badges (medium risk), tooltips
 - Critical: Safety Red (#EA4335). Usage: Critical alerts (harassment, ragging), incident markers
 - Success: Emerald Green (#34A853). Usage: Success badges, verified actions, incident resolved
 - Neutral Text: Fog Gray (#CED3DC). Usage: Subtle labels, card text, status notes

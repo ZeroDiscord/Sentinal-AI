@@ -32,6 +32,9 @@ import AuthUI from "./auth-ui";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { DialogTitle } from "@/components/ui/dialog";
+import { useEffect, useState } from "react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 // MaskIcon for avatar fallback
 const MaskIcon = () => (
@@ -44,6 +47,60 @@ export default function Header() {
   const pathname = usePathname();
   const isLanding = pathname === "/";
   const { user } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(collection(db, "incidents"), (snapshot) => {
+      const notifs = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const readBy = data.readBy || [];
+        // Only show if not read by this user
+        if (user && !readBy.includes(user.uid)) {
+          // New critical incident
+          if (data.severity === "critical" && data.status !== "resolved") {
+            notifs.push({
+              type: "critical",
+              id: doc.id,
+              code: data.code || doc.id,
+              title: `New Incident: #${data.code || doc.id.slice(-3)}`,
+              message: `A critical incident of '${data.type || "Unknown"}' has been reported.`,
+            });
+          }
+          // Escalation suggested
+          if (data.escalate && data.status !== "resolved") {
+            notifs.push({
+              type: "escalation",
+              id: doc.id,
+              code: data.code || doc.id,
+              title: `Escalation Suggested for #${data.code || doc.id.slice(-3)}`,
+              message: `AI suggests escalating the '${data.type || "Unknown"}' incident.`,
+            });
+          }
+        }
+      });
+      setNotifications(notifs);
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [user]);
+
+  // Mark notification as read
+  async function markAsRead(incidentId) {
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch(`/api/incidents/${incidentId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ readBy: [user.uid] }),
+    });
+  }
+
   return (
     <header className="flex h-16 items-center gap-4 border-b border-border/10 bg-background/30 backdrop-blur-sm px-4 md:px-6 sticky top-0 z-30 w-full">
       {user && (
@@ -106,10 +163,12 @@ export default function Header() {
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative rounded-full">
                   <Bell className="h-5 w-5" />
-                  <span className="absolute top-1 right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive"></span>
-                  </span>
+                  {notifications.length > 0 && (
+                    <span className="absolute top-1 right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-destructive"></span>
+                    </span>
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80 glass-card" align="end">
@@ -117,32 +176,22 @@ export default function Header() {
                   <div className="space-y-2">
                     <h4 className="font-medium leading-none">Notifications</h4>
                     <p className="text-sm text-muted-foreground">
-                      You have 2 new critical alerts.
+                      {loading ? "Loading..." : notifications.length === 0 ? "No new critical alerts." : `You have ${notifications.length} new critical alert${notifications.length > 1 ? "s" : ""}.`}
                     </p>
                   </div>
                   <div className="grid gap-2">
-                    <div className="grid grid-cols-[25px_1fr] items-start pb-4 last:mb-0 last:pb-0">
-                      <span className="flex h-2 w-2 translate-y-1 rounded-full bg-destructive" />
-                      <div className="grid gap-1">
-                        <p className="text-sm font-medium">
-                          New Incident: #INC-002
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          A critical incident of 'Ragging' has been reported.
-                        </p>
+                    {notifications.map((notif, i) => (
+                      <div key={notif.id + i} className="grid grid-cols-[25px_1fr_auto] items-start pb-4 last:mb-0 last:pb-0">
+                        <span className={`flex h-2 w-2 translate-y-1 rounded-full ${notif.type === "critical" ? "bg-destructive" : "bg-amber-400"}`} />
+                        <div className="grid gap-1">
+                          <p className="text-sm font-medium">{notif.title}</p>
+                          <p className="text-sm text-muted-foreground">{notif.message}</p>
+                        </div>
+                        <Button size="sm" variant="outline" className="ml-2 px-2 py-1 text-xs" onClick={() => markAsRead(notif.id)}>
+                          Mark as read
+                        </Button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-[25px_1fr] items-start pb-4 last:mb-0 last:pb-0">
-                       <span className="flex h-2 w-2 translate-y-1 rounded-full bg-amber-400" />
-                      <div className="grid gap-1">
-                        <p className="text-sm font-medium">
-                          Escalation Suggested for #INC-005
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          AI suggests escalating the 'Bullying' incident.
-                        </p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </PopoverContent>
@@ -150,7 +199,7 @@ export default function Header() {
           </>
         )}
         {!isLanding && (
-          <div className="ml-4">
+          <div className="ml-auto">
             <AuthUI variant="header" />
           </div>
         )}

@@ -110,14 +110,34 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     setError(null);
     try {
+      // If user is anonymous, delete their Firestore user document
+      if (user && user.isAnonymous) {
+        await fetch(`/api/users/${user.uid}`, { method: 'DELETE' });
+      }
       await firebaseSignOut(auth);
     } catch (err) {
       setError(err.message);
     }
   };
 
+  // Add a method to refresh user Firestore data
+  const refreshUserFromFirestore = async (uid) => {
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/users/${uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRole(data.role || 'student');
+        setSchool(data.school || null);
+        setHostel(data.hostel || null);
+      }
+    } catch (e) {
+      console.error('Failed to refresh user from Firestore', e);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, role, school, hostel, loading, error, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut }}>
+    <AuthContext.Provider value={{ user, role, school, hostel, loading, error, signInWithGoogle, signInWithEmail, signUpWithEmail, signOut, refreshUserFromFirestore }}>
       {children}
     </AuthContext.Provider>
   );
