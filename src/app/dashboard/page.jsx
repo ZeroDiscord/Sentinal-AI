@@ -5,6 +5,9 @@ import { AlertCircle, CheckCircle, ShieldQuestion, FilePlus, Map as MapIcon } fr
 import IncidentTable from "@/components/incident-table";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import IncidentTableSkeleton from "@/components/incident-table-skeleton";
 
 export default function DashboardPage() {
   const [incidents, setIncidents] = useState([]);
@@ -23,28 +26,21 @@ export default function DashboardPage() {
   // Fetch incidents only for allowed roles
   useEffect(() => {
     if (["school_proctor", "cpo", "secretary", "warden", "member"].includes(role)) {
-      fetchIncidents();
+      setLoading(true);
+      const unsub = onSnapshot(collection(db, "incidents"), (snapshot) => {
+        setIncidents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      }, (err) => {
+        setError("Failed to fetch incidents");
+        setLoading(false);
+      });
+      return () => unsub();
     }
   }, [role]);
 
-  const fetchIncidents = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/incidents");
-      const data = await res.json();
-      if (res.ok) setIncidents(data.incidents);
-      else setError(data.error || "Failed to fetch incidents");
-    } catch (err) {
-      setError("Failed to fetch incidents");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const totalIncidents = incidents.length;
-  const pendingIncidents = incidents.filter(i => i.status !== 'Resolved').length;
-  const resolvedIncidents = totalIncidents - pendingIncidents;
+  const pendingIncidents = incidents.filter(i => i.status !== 'resolved').length;
+  const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length;
 
   if (authLoading) return <div>Loading...</div>;
 
@@ -91,51 +87,68 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">Welcome back, Proctor. Here's your incident overview.</p>
         </div>
         <div className="w-full grid gap-4 md:grid-cols-3 mb-10">
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Incidents
-              </CardTitle>
-              <ShieldQuestion className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalIncidents}</div>
-              <p className="text-xs text-muted-foreground">
-                All reported incidents
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Active Incidents
-              </CardTitle>
-              <AlertCircle className="h-4 w-4 text-amber-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{pendingIncidents}</div>
-              <p className="text-xs text-muted-foreground">
-                Pending or in-progress
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="glass-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Resolved Incidents</CardTitle>
-              <CheckCircle className="h-4 w-4 text-emerald-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{resolvedIncidents}</div>
-              <p className="text-xs text-muted-foreground">
-                Successfully closed cases
-              </p>
-            </CardContent>
-          </Card>
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <Card className="glass-card animate-pulse" key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium bg-gray-300 h-4 w-24 rounded" />
+                  <div className="h-4 w-4 bg-gray-300 rounded-full" />
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 w-16 bg-gray-300 rounded mb-2" />
+                  <div className="h-3 w-20 bg-gray-200 rounded" />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <>
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Total Incidents
+                  </CardTitle>
+                  <ShieldQuestion className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalIncidents}</div>
+                  <p className="text-xs text-muted-foreground">
+                    All reported incidents
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    Active Incidents
+                  </CardTitle>
+                  <AlertCircle className="h-4 w-4 text-amber-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{pendingIncidents}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Pending or in-progress
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="glass-card">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Resolved Incidents</CardTitle>
+                  <CheckCircle className="h-4 w-4 text-emerald-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{resolvedIncidents}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Successfully closed cases
+                  </p>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
         <div className="w-full">
           <h2 className="text-2xl font-bold mb-4">Recent Incidents</h2>
           {loading ? (
-            <div>Loading incidents...</div>
+            <IncidentTableSkeleton />
           ) : error ? (
             <div className="text-destructive">{error}</div>
           ) : incidents.length === 0 ? (

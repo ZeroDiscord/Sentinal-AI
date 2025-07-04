@@ -18,6 +18,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function IncidentDetailsPage({ params }) {
   const unwrappedParams = usePromise(params);
@@ -29,8 +33,14 @@ export default function IncidentDetailsPage({ params }) {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const router = useRouter();
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [assignTo, setAssignTo] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [resolveLoading, setResolveLoading] = useState(false);
 
   const fetchIncident = async () => {
     setLoading(true);
@@ -52,6 +62,14 @@ export default function IncidentDetailsPage({ params }) {
     fetchIncident();
     // eslint-disable-next-line
   }, [unwrappedParams.id]);
+
+  useEffect(() => {
+    if (assignDialogOpen) {
+      getDocs(collection(db, "users")).then(snap => {
+        setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    }
+  }, [assignDialogOpen]);
 
   const handleDelete = async () => {
     setDeleteLoading(true);
@@ -102,6 +120,44 @@ export default function IncidentDetailsPage({ params }) {
     }
   }
 
+  const assignableUsers = users.filter(u => ["member", "secretary"].includes(u.role));
+
+  async function handleAssign() {
+    setAssignLoading(true);
+    try {
+      const token = user && (await user.getIdToken());
+      const res = await fetch(`/api/incidents/${incident.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ assignedTo: assignTo }),
+      });
+      if (res.ok) {
+        setAssignDialogOpen(false);
+        fetchIncident();
+      }
+    } finally {
+      setAssignLoading(false);
+    }
+  }
+
+  async function handleResolve() {
+    setResolveLoading(true);
+    try {
+      const token = user && (await user.getIdToken());
+      const res = await fetch(`/api/incidents/${incident.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: "resolved" }),
+      });
+      if (res.ok) {
+        setResolveDialogOpen(false);
+        fetchIncident();
+      }
+    } finally {
+      setResolveLoading(false);
+    }
+  }
+
   if (loading) return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div className="glass-card p-8">
@@ -126,8 +182,8 @@ export default function IncidentDetailsPage({ params }) {
   if (!incident) return <div>No incident found.</div>;
 
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
-      <div className="lg:col-span-2 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 space-y-10">
+      <div className="space-y-8">
         {editing ? (
           <IncidentForm
             incident={incident}
@@ -143,6 +199,11 @@ export default function IncidentDetailsPage({ params }) {
                 <div>
                   <CardTitle className="text-2xl">{incident.title}</CardTitle>
                   <CardDescription>Incident ID: {incident.id}</CardDescription>
+                  <div className="flex items-center gap-4 mt-2">
+                    <span className="font-mono font-bold text-lg text-primary">Priority: {typeof incident.priorityScore === 'number' ? incident.priorityScore.toFixed(1) : '-'}</span>
+                    <Badge variant="outline" className="text-xs">{incident.status || 'open'}</Badge>
+                    <span className="text-xs text-muted-foreground">Assigned to: {incident.assignedTo || 'Unassigned'}</span>
+                  </div>
                 </div>
                 <Badge variant="secondary" className="text-lg">{incident.status}</Badge>
               </div>
@@ -150,15 +211,60 @@ export default function IncidentDetailsPage({ params }) {
             <CardContent>
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold">Incident Details</h1>
-                <Button 
-                  onClick={handleReanalyze} 
-                  disabled={reanalyzing}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw className={`w-4 h-4 ${reanalyzing ? 'animate-spin' : ''}`} />
-                  {reanalyzing ? 'Re-Analyzing...' : 'Re-Analyze with AI'}
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleReanalyze} 
+                    disabled={reanalyzing}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${reanalyzing ? 'animate-spin' : ''}`} />
+                    {reanalyzing ? 'Re-Analyzing...' : 'Re-Analyze with AI'}
+                  </Button>
+                  {user && (role === 'cpo' || role === 'school_proctor') && (
+                    <>
+                      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="secondary" className="ml-2">Assign</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader><DialogTitle>Assign Incident</DialogTitle></DialogHeader>
+                          <div className="space-y-4">
+                            <Select value={assignTo} onValueChange={setAssignTo}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select user to assign" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {assignableUsers.map(u => (
+                                  <SelectItem key={u.id} value={u.name || u.email || u.id}>{u.name || u.email} ({u.role})</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <DialogFooter>
+                            <Button onClick={handleAssign} disabled={!assignTo || assignLoading}>
+                              {assignLoading ? "Assigning..." : "Assign"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                      <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="destructive" className="ml-2">Resolve</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader><DialogTitle>Resolve Incident</DialogTitle></DialogHeader>
+                          <p>Are you sure you want to mark this incident as resolved?</p>
+                          <DialogFooter>
+                            <Button onClick={handleResolve} variant="destructive" disabled={resolveLoading}>
+                              {resolveLoading ? "Resolving..." : "Yes, Resolve"}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-6">
                 <div className="flex items-center gap-2">
@@ -251,9 +357,7 @@ export default function IncidentDetailsPage({ params }) {
         )}
       </div>
 
-      <div className="lg:col-span-1">
-        <AIAnalysis reportText={incident.description} />
-      </div>
+      <AIAnalysis reportText={incident.description} />
     </div>
   );
 }

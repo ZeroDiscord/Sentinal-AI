@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Lightbulb, AlertTriangle, Check, Tags, ShieldAlert, ShieldCheck } from "lucide-react";
@@ -9,218 +9,293 @@ import { Progress } from "@/components/ui/progress";
 
 export default function AIAnalysis({ reportText }) {
   const [analysis, setAnalysis] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Mock data for demonstration
   useEffect(() => {
     if (!reportText) return;
-    const getAnalysis = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Use a simple API call to analyze the text
-        const response = await fetch('/api/analyze-text', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ text: reportText }),
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          setAnalysis(result.analysis);
-        } else {
-          throw new Error('Failed to analyze text');
+    
+    // Simulate loading
+    setIsLoading(true);
+    setTimeout(() => {
+      setAnalysis({
+        summary: "Report of a couple engaging in public indecency on university grounds, specifically involving extensive breast grabbing, which is perceived as bringing shame to the university.",
+        tags: ["public-indecency", "inappropriate behavior", "sexual misconduct", "campus conduct", "university reputation"],
+        severity: "High",
+        escalate: true,
+        escalationReason: "The incident involves gross public indecency and potential sexual misconduct, which requires immediate attention.",
+        type: "Sexual Misconduct / Public Indecency",
+        confidence: {
+          summary: 0.95,
+          tags: 0.88,
+          severity: 0.92,
+          escalate: 0.94,
+          type: 0.90
         }
-      } catch (err) {
-        setError("Failed to get AI analysis. Please try again later.");
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    getAnalysis();
+      });
+      setIsLoading(false);
+    }, 1000);
   }, [reportText]);
 
-  const renderContent = () => {
-    if (isLoading) {
-      return (
-        <div className="space-y-4">
-          <Skeleton className="h-4 w-1/3" />
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-4 w-1/4" />
-          <div className="flex gap-2">
-            <Skeleton className="h-6 w-16" />
-            <Skeleton className="h-6 w-20" />
-            <Skeleton className="h-6 w-12" />
-          </div>
-          <Skeleton className="h-4 w-1/2" />
-        </div>
-      );
-    }
-
-    if (error) {
-      return <p className="text-destructive">{error}</p>;
-    }
-
-    if (!analysis) {
-      return <p>No analysis available.</p>;
-    }
-
-    // Helper function to get confidence color
-    function getConfidenceColor(score) {
-      if (score >= 0.8) return "text-green-500";
-      if (score >= 0.6) return "text-yellow-500";
-      return "text-red-500";
-    }
-
-    // Helper function to get confidence label
-    function getConfidenceLabel(score) {
-      if (score >= 0.8) return "High";
-      if (score >= 0.6) return "Medium";
-      return "Low";
-    }
-
-    return (
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-blue-500" />
-            <h3 className="font-semibold">AI Summary</h3>
-            {analysis.confidence?.summary && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className={`text-xs font-medium ${getConfidenceColor(analysis.confidence.summary)}`}>
-                  {getConfidenceLabel(analysis.confidence.summary)} Confidence
-                </span>
-                <Progress value={analysis.confidence.summary * 100} className="w-16 h-2" />
-              </div>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{analysis.summary}</p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Tags className="w-4 h-4 text-green-500" />
-            <h3 className="font-semibold">Suggested Tags</h3>
-            {analysis.confidence?.tags && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className={`text-xs font-medium ${getConfidenceColor(analysis.confidence.tags)}`}>
-                  {getConfidenceLabel(analysis.confidence.tags)} Confidence
-                </span>
-                <Progress value={analysis.confidence.tags * 100} className="w-16 h-2" />
-              </div>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {analysis.tags?.map(tag => (
-              <Badge key={tag} variant="secondary">{tag}</Badge>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-orange-500" />
-            <h3 className="font-semibold">Estimated Severity</h3>
-            {analysis.confidence?.severity && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className={`text-xs font-medium ${getConfidenceColor(analysis.confidence.severity)}`}>
-                  {getConfidenceLabel(analysis.confidence.severity)} Confidence
-                </span>
-                <Progress value={analysis.confidence.severity * 100} className="w-16 h-2" />
-              </div>
-            )}
-          </div>
-          <Badge className="capitalize" variant={analysis.severity === 'high' ? 'destructive' : 'secondary'}>
-            {analysis.severity}
-          </Badge>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            {analysis.escalate ? (
-              <ShieldAlert className="w-4 h-4 text-red-500" />
-            ) : (
-              <ShieldCheck className="w-4 h-4 text-green-500" />
-            )}
-            <h3 className="font-semibold">Escalation Recommendation</h3>
-            {analysis.confidence?.escalate && (
-              <div className="flex items-center gap-2 ml-auto">
-                <span className={`text-xs font-medium ${getConfidenceColor(analysis.confidence.escalate)}`}>
-                  {getConfidenceLabel(analysis.confidence.escalate)} Confidence
-                </span>
-                <Progress value={analysis.confidence.escalate * 100} className="w-16 h-2" />
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={analysis.escalate ? 'destructive' : 'secondary'}>
-              {analysis.escalate ? 'Escalate' : 'No Escalation'}
-            </Badge>
-            {analysis.escalationReason && (
-              <span className="text-sm text-muted-foreground">- {analysis.escalationReason}</span>
-            )}
-          </div>
-        </div>
-        {analysis.type && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-blue-500" />
-              <h3 className="font-semibold">Classified Type</h3>
-              {analysis.confidence?.type && (
-                <div className="flex items-center gap-2 ml-auto">
-                  <span className={`text-xs font-medium ${getConfidenceColor(analysis.confidence.type)}`}>
-                    {getConfidenceLabel(analysis.confidence.type)} Confidence
-                  </span>
-                  <Progress value={analysis.confidence.type * 100} className="w-16 h-2" />
-                </div>
-              )}
-            </div>
-            <Badge variant="outline" className="capitalize">{analysis.type}</Badge>
-          </div>
-        )}
-        {analysis.confidence && (
-          <div className="space-y-2 pt-4 border-t">
-            <h3 className="font-semibold text-sm">Overall AI Confidence</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
-              <div className="text-center">
-                <div className={`font-medium ${getConfidenceColor(analysis.confidence.summary)}`}>
-                  Summary: {Math.round(analysis.confidence.summary * 100)}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className={`font-medium ${getConfidenceColor(analysis.confidence.tags)}`}>
-                  Tags: {Math.round(analysis.confidence.tags * 100)}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className={`font-medium ${getConfidenceColor(analysis.confidence.severity)}`}>
-                  Severity: {Math.round(analysis.confidence.severity * 100)}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className={`font-medium ${getConfidenceColor(analysis.confidence.escalate)}`}>
-                  Escalation: {Math.round(analysis.confidence.escalate * 100)}%
-                </div>
-              </div>
-              <div className="text-center">
-                <div className={`font-medium ${getConfidenceColor(analysis.confidence.type)}`}>
-                  Type: {Math.round(analysis.confidence.type * 100)}%
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
+  const getConfidenceColor = (score) => {
+    if (score >= 0.8) return "text-emerald-400";
+    if (score >= 0.6) return "text-yellow-400";
+    return "text-red-400";
   };
 
-  return (
-    <Card className="glass-card sticky top-24">
-      <CardHeader>
-        <CardTitle>AI Analysis</CardTitle>
-        <CardDescription>Generated by SentinelAI</CardDescription>
+  const getConfidenceLabel = (score) => {
+    if (score >= 0.8) return "High";
+    if (score >= 0.6) return "Medium";
+    return "Low";
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (severity?.toLowerCase()) {
+      case 'high': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'low': return 'bg-green-500/20 text-green-400 border-green-500/30';
+      default: return 'bg-slate-700/50 text-slate-300 border-slate-600/50';
+    }
+  };
+
+  const ConfidenceIndicator = ({ score, label }) => (
+    <div className="flex items-center gap-2 text-sm">
+      <span className={`font-medium ${getConfidenceColor(score)}`}>
+        {getConfidenceLabel(score)}
+      </span>
+      <span className="text-slate-400">Confidence</span>
+      <Progress value={score * 100} className="w-16 h-1.5" />
+    </div>
+  );
+
+  const SectionCard = ({ icon: Icon, title, confidence, children, className = "" }) => (
+    <Card className={`bg-slate-800/50 border-slate-700/50 ${className}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Icon className="w-4 h-4 text-slate-400" />
+            <CardTitle className="text-sm font-medium text-slate-200">{title}</CardTitle>
+          </div>
+          {confidence && <ConfidenceIndicator score={confidence} />}
+        </div>
       </CardHeader>
-      <CardContent>{renderContent()}</CardContent>
+      <CardContent className="pt-0">
+        {children}
+      </CardContent>
     </Card>
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-6 bg-slate-900/30 rounded-lg border border-slate-700/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-6 w-32 mb-2" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+
+        <Card className="bg-slate-800/50 border-slate-700/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Skeleton className="w-4 h-4" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-20 w-full" />
+          </CardContent>
+        </Card>
+        
+        <div className="grid grid-cols-1 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="bg-slate-800/50 border-slate-700/50">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="w-4 h-4" />
+                    <Skeleton className="h-4 w-28" />
+                  </div>
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-6 w-24" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-slate-900/30 rounded-lg border border-slate-700/30">
+        <Card className="bg-red-900/20 border-red-500/30">
+          <CardContent className="pt-6">
+            <div className="text-center text-red-400">
+              <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
+              <p>{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <div className="p-6 bg-slate-900/30 rounded-lg border border-slate-700/30">
+        <Card className="bg-slate-800/50 border-slate-700/50">
+          <CardContent className="pt-6">
+            <div className="text-center text-slate-400">
+              <Lightbulb className="w-8 h-8 mx-auto mb-2" />
+              <p>No analysis available</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6 bg-slate-900/30 rounded-lg border border-slate-700/30">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-700/30 pb-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-200 flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-blue-400" />
+            AI Analysis
+          </h2>
+          <p className="text-sm text-slate-400 mt-1">Generated by SentinelAI</p>
+        </div>
+      </div>
+
+      {/* AI Summary - Full Width */}
+      <SectionCard 
+        icon={Lightbulb} 
+        title="AI Summary" 
+        confidence={analysis.confidence?.summary}
+      >
+        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700/30">
+          <p className="text-slate-300 leading-relaxed text-sm">
+            {analysis.summary}
+          </p>
+        </div>
+      </SectionCard>
+
+      {/* Analysis Cards - Stacked Vertically */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Suggested Tags */}
+        <SectionCard 
+          icon={Tags} 
+          title="Suggested Tags" 
+          confidence={analysis.confidence?.tags}
+        >
+          <div className="flex flex-wrap gap-2">
+            {analysis.tags?.map((tag, index) => (
+              <Badge 
+                key={index} 
+                variant="secondary" 
+                className="bg-slate-700/50 text-slate-300 border-slate-600/50 text-xs px-2 py-1"
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </SectionCard>
+
+        {/* Estimated Severity */}
+        <SectionCard 
+          icon={AlertTriangle} 
+          title="Estimated Severity" 
+          confidence={analysis.confidence?.severity}
+        >
+          <div className="flex items-center gap-3">
+            <Badge className={`${getSeverityColor(analysis.severity)} text-sm px-3 py-1.5 capitalize font-medium`}>
+              {analysis.severity}
+            </Badge>
+            <span className="text-xs text-slate-400">
+              Risk Level Assessment
+            </span>
+          </div>
+        </SectionCard>
+
+        {/* Escalation Recommendation */}
+        <SectionCard 
+          icon={analysis.escalate ? ShieldAlert : ShieldCheck} 
+          title="Escalation Recommendation" 
+          confidence={analysis.confidence?.escalate}
+        >
+          <div className="space-y-3">
+            <Badge 
+              className={`text-sm px-3 py-1.5 font-medium ${
+                analysis.escalate 
+                  ? 'bg-red-500/20 text-red-400 border-red-500/30' 
+                  : 'bg-green-500/20 text-green-400 border-green-500/30'
+              }`}
+            >
+              {analysis.escalate ? 'Escalate Required' : 'No Escalation Needed'}
+            </Badge>
+            {analysis.escalationReason && (
+              <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-700/30">
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  {analysis.escalationReason}
+                </p>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+
+        {/* Classified Type */}
+        {analysis.type && (
+          <SectionCard 
+            icon={Check} 
+            title="Classified Type" 
+            confidence={analysis.confidence?.type}
+          >
+            <div className="flex items-center gap-3">
+              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-sm px-3 py-1.5 capitalize font-medium">
+                {analysis.type}
+              </Badge>
+              <span className="text-xs text-slate-400">
+                Incident Classification
+              </span>
+            </div>
+          </SectionCard>
+        )}
+      </div>
+
+      {/* Overall Confidence */}
+      {analysis.confidence && (
+        <div className="pt-4 border-t border-slate-700/30">
+          <Card className="bg-slate-800/50 border-slate-700/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-slate-200">Overall Confidence Metrics</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {Object.entries(analysis.confidence).map(([key, value]) => (
+                  <div key={key} className="text-center p-3 bg-slate-900/50 rounded-lg border border-slate-700/30 hover:bg-slate-800/50 transition-colors">
+                    <div className="text-xs text-slate-400 mb-1 capitalize font-medium">{key}</div>
+                    <div className={`text-lg font-bold ${getConfidenceColor(value)}`}>
+                      {Math.round(value * 100)}%
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {getConfidenceLabel(value)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

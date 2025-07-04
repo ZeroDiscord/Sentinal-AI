@@ -77,3 +77,8 @@
     @apply shadow-2xl;
   }
 }
+
+/* Custom scrollbar for incident table */
+.custom-scrollbar::-webkit-scrollbar { height: 8px; background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: #334155 transparent; }

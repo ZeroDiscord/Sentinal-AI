@@ -10,6 +10,6 @@ export const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
  * @param {string} [options.model=''] - The Gemini model to use.
  * @returns {Promise<object>} - The Gemini API response.
  */
-export async function callGemini({ prompt, model = 'gemini-1.5-flash' }) {
+export async function callGemini({ prompt, model = 'gemini-2.5-flash' }) {
   return ai.models.generateContent({ model, contents: prompt });
 } 

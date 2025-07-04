@@ -266,3 +266,37 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Failed to delete incident' }, { status: 500 });
   }
 }
+
+// Add PATCH for assign/resolve
+export async function PATCH(request, { params }) {
+  try {
+    const { id } = await params;
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });
+    }
+    const token = authHeader.replace('Bearer ', '');
+    const user = await verifyIdToken(token);
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid auth token' }, { status: 401 });
+    }
+    const incidentRef = doc(db, 'incidents', id);
+    const incidentSnap = await getDoc(incidentRef);
+    if (!incidentSnap.exists()) {
+      return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
+    }
+    const body = await request.json();
+    const update = {};
+    if (body.assignedTo !== undefined) update.assignedTo = body.assignedTo;
+    if (body.status === 'resolved') update.status = 'resolved';
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+    await updateDoc(incidentRef, update);
+    const updatedSnap = await getDoc(incidentRef);
+    return NextResponse.json({ incident: { id, ...updatedSnap.data() } });
+  } catch (err) {
+    console.error('Error in PATCH /api/incidents/[id]:', err);
+    return NextResponse.json({ error: 'Failed to update incident' }, { status: 500 });
+  }
+}

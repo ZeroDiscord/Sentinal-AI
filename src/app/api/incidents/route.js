@@ -48,8 +48,8 @@ export async function POST(req) {
     let reporterRole = 'anonymous';
 
     if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      user = await verifyIdToken(token);
+        const token = authHeader.replace('Bearer ', '');
+        user = await verifyIdToken(token);
       // Try to fetch user profile from Firestore
       if (user && user.uid) {
         try {
@@ -75,12 +75,12 @@ export async function POST(req) {
 
     // Prepare initial data
     const incidentData = {
-      ...data,
+        ...data,
       reportedBy: displayName,
       reporterRole: reporterRole,
-      status: 'pending_analysis',
-      createdAt: serverTimestamp(),
-      date: new Date().toISOString(),
+        status: 'pending_analysis',
+        createdAt: serverTimestamp(),
+        date: new Date().toISOString(),
     };
 
     // 1. Create the incident with basic fields
@@ -197,6 +197,38 @@ Example:
       ai = parsed || {};
       aiCache.set(descHash, ai);
 
+      // --- Vertex AI Priority Scoring ---
+      let priorityScore = null;
+      try {
+        const vertexResp = await fetch(process.env.VERTEX_PRIORITY_SCORE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            severity: ai.severity || data.severity || '',
+            category: ai.type || data.type || '',
+            description: data.description || '',
+          }),
+        });
+        if (vertexResp.ok) {
+          const vertexData = await vertexResp.json();
+          if (typeof vertexData.priorityScore === 'number') {
+            priorityScore = vertexData.priorityScore;
+          }
+        } else {
+          console.error('[VertexAI] Priority scoring failed:', await vertexResp.text());
+        }
+      } catch (e) {
+        console.error('[VertexAI] Error calling priority scoring function:', e);
+      }
+
+      // --- Save AI and priority score to Firestore ---
+      await updateDoc(doc(db, 'incidents', docRef.id), {
+        ...ai,
+        priorityScore: priorityScore,
+        status: 'open',
+        assignedTo: null,
+      });
+
       // --- Audit Trail ---
       try {
         await addDoc(collection(db, 'ai_audit_trail'), {
@@ -247,7 +279,7 @@ Example:
 
     const incidentUpdate = {
       ...aiSanitized,
-      status: 'analyzed',
+        status: 'analyzed',
       aiRaw: ai
     };
     await updateDoc(doc(db, 'incidents', docRef.id), incidentUpdate);
