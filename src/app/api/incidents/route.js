@@ -57,14 +57,16 @@ export async function POST(req) {
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            displayName = userData.displayName || userData.name || user.email || user.uid;
             reporterRole = userData.role || 'student';
             userSchool = userData.school || null;
-          } else {
-            displayName = user.email || user.uid;
           }
-        } catch (e) {
-          displayName = user.email || user.uid;
+        } catch (e) {}
+        // Set reportedBy to user.uid for non-anonymous, 'Anonymous' for anonymous
+        if (user.isAnonymous || (!user.email && !user.displayName)) {
+          displayName = 'Anonymous';
+          reporterRole = 'anonymous';
+        } else {
+          displayName = user.uid;
         }
       }
     }

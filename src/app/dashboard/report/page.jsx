@@ -270,7 +270,7 @@ export default function ReportIncidentPage() {
                   <FormItem>
                     <FormLabel>Incident Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Vandalism in West Wing" {...field} />
+                      <Input placeholder="e.g. Bullying in the football field" {...field} />
                     </FormControl>
                     <FormDescription>
                       Give a short, descriptive title for the incident.
@@ -302,7 +302,7 @@ export default function ReportIncidentPage() {
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Near Chemistry Lab" {...field} />
+                      <Input placeholder="e.g., Near the football field" {...field} />
                     </FormControl>
                     <FormDescription>
                       Where did the incident occur? (You can be specific or general.)

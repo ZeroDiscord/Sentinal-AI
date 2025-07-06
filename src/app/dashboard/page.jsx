@@ -9,25 +9,26 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import IncidentTableSkeleton from "@/components/incident-table-skeleton";
 import FullPageLoader from "@/components/ui/full-page-loader";
+import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const severityConfig = {
   critical: { color: '#ef4444', label: 'Critical' },
-  high: { color: '#f97316', label: 'High' }, // Updated orange for better contrast
-  moderate: { color: '#f59e0b', label: 'Medium' }, // Updated amber/yellow
+  high: { color: '#f97316', label: 'High' },
+  moderate: { color: '#f59e0b', label: 'Moderate' },
   low: { color: '#3b82f6', label: 'Low' },
   default: { color: '#6b7280', label: 'Unknown' },
 };
 
-// A smaller, reusable metric card component
+// MetricCard: icon larger and centered
 const MetricCard = ({ title, value, description, icon: Icon }) => (
   <Card className="glass-card h-full flex flex-col justify-center p-6">
-    <div className="flex justify-between items-start">
-      <div className="flex flex-col">
+    <div className="flex justify-between items-center h-12 mb-2">
+      <div className="flex flex-col justify-center">
         <span className="text-sm font-medium text-muted-foreground">{title}</span>
         <span className="text-3xl font-bold">{value}</span>
       </div>
-      <Icon className="h-5 w-5 text-muted-foreground" />
+      <Icon className="h-8 w-8 text-muted-foreground" />
     </div>
     <p className="text-xs text-muted-foreground mt-2">{description}</p>
   </Card>
@@ -98,19 +99,18 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="w-full flex flex-col items-center justify-center min-h-[80vh]">
-        <div className="w-full max-w-6xl px-4 flex flex-col items-center">
+      {/* Main dashboard container: remove centering, let flexbox handle layout */}
+      <div className="flex flex-col min-h-[80vh]">
+        <div className="w-full max-w-6xl mx-auto px-4 flex flex-col">
           <div className="flex flex-col gap-8 p-4 md:p-6">
             <div className="text-left">
               <h1 className="text-3xl font-bold">Dashboard</h1>
               <p className="text-muted-foreground">Welcome back. Here's your incident overview.</p>
             </div>
-
             {/* Top Section: Grid for Chart and Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[220px]">
               {/* Donut Chart */}
-              <Card className="glass-card md:col-span-2 lg:col-span-1">
+              <Card className="glass-card h-full md:col-span-2 lg:col-span-1 flex flex-col justify-center">
                 <CardHeader>
                   <CardTitle className="text-base">Incidents by Severity</CardTitle>
                 </CardHeader>
@@ -146,13 +146,11 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
-
               {/* Metric Cards */}
               <MetricCard title="Total Incidents" value={totalIncidents} description="All reported incidents" icon={ShieldQuestion}/>
               <MetricCard title="Active Incidents" value={activeIncidents} description="Pending or in-progress" icon={AlertCircle} />
               <MetricCard title="Resolved Incidents" value={resolvedIncidents} description="Successfully closed cases" icon={CheckCircle} />
             </div>
-
             {/* Bottom Section: Recent Incidents Table */}
             <div>
               <h2 className="text-2xl font-bold mb-4">Recent Incidents</h2>
@@ -163,7 +161,9 @@ export default function DashboardPage() {
               ) : incidents.length === 0 ? (
                 <div className="text-muted-foreground text-center glass-card p-8 rounded-lg">No incidents found.</div>
               ) : (
-                <IncidentTable incidents={incidents} />
+                <div className="overflow-x-auto w-full">
+                  <IncidentTable incidents={incidents} />
+                </div>
               )}
             </div>
           </div>

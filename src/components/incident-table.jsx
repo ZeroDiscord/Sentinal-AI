@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function IncidentTable({ incidents, onActionComplete }) {
   const router = useRouter();
@@ -32,6 +32,21 @@ export default function IncidentTable({ incidents, onActionComplete }) {
   const [assignLoading, setAssignLoading] = useState(false);
   const [resolveLoading, setResolveLoading] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState(null);
+  const [userNames, setUserNames] = useState({});
+  const userCache = useRef({});
+
+  // Sort incidents by priorityScore descending
+  const sortedIncidents = [...incidents].sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+
+  // Pagination state
+  const pageSize = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(sortedIncidents.length / pageSize);
+  const paginatedIncidents = sortedIncidents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  useEffect(() => {
+    // Reset to first page if incidents change and current page is out of range
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [sortedIncidents.length, totalPages]);
 
   // Fetch assignable users (members, secretaries)
   useEffect(() => {
@@ -43,8 +58,29 @@ export default function IncidentTable({ incidents, onActionComplete }) {
   }, [assignDialogOpen]);
   const assignableUsers = users.filter(u => ["member", "secretary"].includes(u.role));
 
-  // Sort incidents by priorityScore descending
-  const sortedIncidents = [...incidents].sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+  // Fetch display names for all unique user IDs in the current page
+  useEffect(() => {
+    const idsToFetch = paginatedIncidents
+      .map(i => i.reportedBy)
+      .filter(id => id && id !== 'Anonymous' && !userCache.current[id]);
+    if (idsToFetch.length === 0) return;
+    const fetchUsers = async () => {
+      const usersSnapshot = await Promise.all(idsToFetch.map(id => getDocs(collection(db, "users"))));
+      const newUserNames = { ...userCache.current };
+      usersSnapshot.forEach((snap, idx) => {
+        const id = idsToFetch[idx];
+        const userDoc = snap.docs.find(doc => doc.id === id);
+        if (userDoc) {
+          newUserNames[id] = userDoc.data().name || userDoc.data().displayName || id;
+        } else {
+          newUserNames[id] = id;
+        }
+      });
+      userCache.current = newUserNames;
+      setUserNames({ ...newUserNames });
+    };
+    fetchUsers();
+  }, [paginatedIncidents]);
 
   async function handleAssign() {
     if (!selectedIncident) return;
@@ -137,7 +173,7 @@ export default function IncidentTable({ incidents, onActionComplete }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedIncidents.map((incident) => (
+          {paginatedIncidents.map((incident) => (
             <TableRow key={incident.id} className="hover:bg-white/5 border-b-white/10 last:border-b-0 cursor-pointer" onClick={() => handleViewDetails(incident.id)}>
               <TableCell className="font-medium">{incident.id}</TableCell>
               <TableCell className="hidden md:table-cell">{incident.type}</TableCell>
@@ -167,7 +203,11 @@ export default function IncidentTable({ incidents, onActionComplete }) {
                   <span className="text-muted-foreground">-</span>
                 )}
               </TableCell>
-              <TableCell className="hidden lg:table-cell">{incident.reportedBy}</TableCell>
+              <TableCell className="hidden lg:table-cell">
+                {incident.reportedBy === 'Anonymous' || !incident.reportedBy
+                  ? 'Anonymous'
+                  : userNames[incident.reportedBy] || incident.reportedBy}
+              </TableCell>
               <TableCell className="hidden md:table-cell">{incident.date}</TableCell>
               <TableCell>{incident.school || '-'}</TableCell>
               <TableCell>{incident.assignedTo || <span className="text-muted-foreground">Unassigned</span>}</TableCell>
@@ -235,6 +275,40 @@ export default function IncidentTable({ incidents, onActionComplete }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-end items-center gap-1 mt-6">
+          <Button
+            variant="ghost"
+            className="h-9 px-3 rounded-full flex items-center justify-center"
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            aria-label="Previous Page"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <Button
+              key={i}
+              variant={currentPage === i + 1 ? "default" : "ghost"}
+              className="h-9 px-4 min-w-[2.25rem] rounded-full flex items-center justify-center font-semibold transition-all"
+              onClick={() => setCurrentPage(i + 1)}
+              aria-label={`Page ${i + 1}`}
+            >
+              {i + 1}
+            </Button>
+          ))}
+          <Button
+            variant="ghost"
+            className="h-9 px-3 rounded-full flex items-center justify-center"
+            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            aria-label="Next Page"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

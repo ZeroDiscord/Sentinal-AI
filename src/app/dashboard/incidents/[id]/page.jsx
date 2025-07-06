@@ -20,7 +20,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -60,6 +60,8 @@ export default function IncidentDetailsPage({ params }) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const [reporterName, setReporterName] = useState(null);
+  const reporterCache = useRef({});
 
   const fetchIncident = async () => {
     setLoading(true);
@@ -89,6 +91,33 @@ export default function IncidentDetailsPage({ params }) {
       });
     }
   }, [assignDialogOpen]);
+
+  useEffect(() => {
+    async function fetchReporterName() {
+      if (!incident || !incident.reportedBy || incident.reportedBy === 'Anonymous' || incident.reportedBy === 'anonymous') {
+        setReporterName('Anonymous');
+        return;
+      }
+      if (reporterCache.current[incident.reportedBy]) {
+        setReporterName(reporterCache.current[incident.reportedBy]);
+        return;
+      }
+      try {
+        const userDoc = await getDoc(doc(db, 'users', incident.reportedBy));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const name = data.name || data.displayName || incident.reportedBy;
+          reporterCache.current[incident.reportedBy] = name;
+          setReporterName(name);
+        } else {
+          setReporterName(incident.reportedBy);
+        }
+      } catch {
+        setReporterName(incident.reportedBy);
+      }
+    }
+    fetchReporterName();
+  }, [incident]);
 
   const handleDelete = async () => {
     setDeleteLoading(true);
@@ -395,7 +424,7 @@ export default function IncidentDetailsPage({ params }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <User className="w-4 h-4" />
-                  By {incident.reportedBy && incident.reportedBy !== 'anonymous' ? incident.reportedBy : 'Anonymous'}{incident.reporterRole ? ` (${incident.reporterRole})` : ''}
+                  By {reporterName}{incident && incident.reporterRole ? ` (${incident.reporterRole})` : ''}
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" /> At {incident.location}

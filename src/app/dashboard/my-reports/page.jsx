@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { onSnapshot } from "firebase/firestore";
 
 export default function MyReportsPage() {
   const { user, role } = useAuth();
@@ -18,14 +19,13 @@ export default function MyReportsPage() {
       setLoading(false);
       return;
     }
-    async function fetchMyIncidents() {
-      setLoading(true);
-      const q = query(collection(db, "incidents"), where("reportedBy", "==", user.uid));
-      const snapshot = await getDocs(q);
+    setLoading(true);
+    const q = query(collection(db, "incidents"), where("reportedBy", "==", user.uid));
+    const unsub = onSnapshot(q, (snapshot) => {
       setIncidents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
-    }
-    fetchMyIncidents();
+    });
+    return () => unsub();
   }, [user]);
 
   const normalizeSeverity = (severity) => {

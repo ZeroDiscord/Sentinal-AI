@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import "@/app/dashboard/map/pulse.css";
+import ReactDOM from "react-dom";
 
 const CAMPUS_MAPS = {
   bidholi: {
@@ -58,8 +59,8 @@ export default function MapPage() {
   const [isSatellite, setIsSatellite] = useState(false);
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeIncident, setActiveIncident] = useState(null);
-  const [hoveredIncident, setHoveredIncident] = useState(null);
+  const [selectedIncident, setSelectedIncident] = useState(null);
+  const [modalCoords, setModalCoords] = useState({ x: 0, y: 0 });
   const mapRef = useRef();
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -90,6 +91,33 @@ export default function MapPage() {
     setZoom(1);
     setOffset({ x: 0, y: 0 });
   };
+
+  // Helper to get marker's screen position
+  function getMarkerScreenPosition(coords) {
+    if (!mapRef.current) return { x: 0, y: 0 };
+    const rect = mapRef.current.getBoundingClientRect();
+    return {
+      x: rect.left + (coords.x / 100) * rect.width,
+      y: rect.top + (coords.y / 100) * rect.height,
+    };
+  }
+
+  // Click outside modal to close
+  useEffect(() => {
+    function handleClick(e) {
+      if (!selectedIncident) return;
+      const modal = document.getElementById("incident-modal-card");
+      if (modal && !modal.contains(e.target)) {
+        setSelectedIncident(null);
+      }
+    }
+    if (selectedIncident) {
+      document.addEventListener("mousedown", handleClick);
+    } else {
+      document.removeEventListener("mousedown", handleClick);
+    }
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [selectedIncident]);
 
   useEffect(() => {
     setLoading(true);
@@ -182,7 +210,7 @@ export default function MapPage() {
               </span>
             </div>
           )}
-          {/* Markers and cards (popover beside badge, always on top) */}
+          {/* Markers */}
           {!loading && incidents.map((incident) => {
             const coords =
               incident.marker && typeof incident.marker.x === 'number' && typeof incident.marker.y === 'number'
@@ -201,51 +229,93 @@ export default function MapPage() {
                 })()
               : "Low";
             const severityStyles = getSeverityStyles(normalizedSeverity);
-            const showBelow = coords.y < 20;
+            // Only render marker if not selected
+            if (selectedIncident && selectedIncident.id === incident.id) return null;
             return (
               <div
                 key={incident.id}
                 style={{ top: `${coords.y}%`, left: `${coords.x}%`, width: 48, height: 48, background: 'transparent', zIndex: 9999, borderRadius: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'absolute', transform: 'translate(-50%, -50%)' }}
-                onMouseEnter={() => setHoveredIncident(incident.id)}
-                onMouseLeave={() => setHoveredIncident(null)}
+                onClick={e => {
+                  setSelectedIncident({ ...incident, coords });
+                  setModalCoords(getMarkerScreenPosition(coords));
+                }}
               >
-                {/* Only render the badge if the card is not open for this marker */}
-                {hoveredIncident !== incident.id && (
-                  <>
-                    <span className={cn("custom-pulse border border-white/30 z-10", severityStyles.dot)} />
-                    <span className={cn(
-                      "relative inline-flex rounded-full h-4 w-4 border-2 border-white z-10",
-                      severityStyles.dot
-                    )} />
-                  </>
-                )}
-                {/* Render the card if this marker is hovered */}
-                {hoveredIncident === incident.id && (
-                  <div
-                    className={cn(
-                      "z-[999999] w-80 p-4 rounded-2xl shadow-xl border-none bg-[#181924] absolute left-1/2 pointer-events-auto",
-                      showBelow ? "top-full mt-4" : "bottom-full mb-4",
-                      "-translate-x-1/2"
-                    )}
-                    style={{ minWidth: 260 }}
-                    onMouseEnter={() => setHoveredIncident(incident.id)}
-                    onMouseLeave={() => setHoveredIncident(null)}
-                  >
-                    <div className="space-y-2">
-                      <h4 className="font-bold text-lg text-white leading-tight">{incident.title}</h4>
-                      <p className="text-sm text-gray-400">{incident.location}</p>
-                      <div className="flex items-center gap-2 pt-2">
-                        <Badge className={cn("text-xs px-3 py-1 font-semibold rounded-full", severityStyles.badge)}>{normalizedSeverity}</Badge>
-                        <Badge variant="secondary" className="text-xs px-3 py-1 font-semibold rounded-full bg-[#23243a] text-white border-none">{incident.type || 'Unknown'}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <span className={cn("custom-pulse border border-white/30 z-10", severityStyles.dot)} />
+                <span className={cn(
+                  "relative inline-flex rounded-full h-4 w-4 border-2 border-white z-10",
+                  severityStyles.dot
+                )} />
               </div>
             );
           })}
-          {loading && <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">Loading incidents...</div>}
+          {/* Modal Portal Target */}
+          <div id="map-modal-portal" />
         </div>
+        {/* Modal Card rendered in portal */}
+        {selectedIncident && typeof window !== 'undefined' && ReactDOM.createPortal(
+          (() => {
+            // Position modal above or below marker, with pointer
+            const { coords } = selectedIncident;
+            const mapRect = mapRef.current?.getBoundingClientRect() || { left: 0, top: 0, width: 0, height: 0 };
+            const markerX = mapRect.left + (coords.x / 100) * mapRect.width;
+            const markerY = mapRect.top + (coords.y / 100) * mapRect.height;
+            // Adaptive: show below if near top, above if near bottom
+            const showBelow = coords.y < 20;
+            const showAbove = coords.y > 80;
+            let modalLeft = markerX;
+            let modalTop = showBelow ? markerY + 40 : markerY - 40;
+            // Clamp modal within map horizontally
+            const modalWidth = 320;
+            if (modalLeft < mapRect.left + modalWidth / 2) modalLeft = mapRect.left + modalWidth / 2;
+            if (modalLeft > mapRect.left + mapRect.width - modalWidth / 2) modalLeft = mapRect.left + mapRect.width - modalWidth / 2;
+            return (
+              <div
+                id="incident-modal-card"
+                className={cn(
+                  "fixed z-[9999999] w-80 p-4 rounded-2xl shadow-xl border-none bg-[#181924] pointer-events-auto",
+                  showBelow ? "" : ""
+                )}
+                style={{
+                  left: modalLeft - mapRect.left,
+                  top: showBelow ? modalTop - mapRect.top : modalTop - mapRect.top - 160,
+                  minWidth: 260,
+                  maxWidth: 320,
+                  position: 'absolute',
+                  transform: 'translate(-50%, 0)',
+                }}
+              >
+                {/* Pointer triangle */}
+                <div
+                  className={cn(
+                    "absolute w-0 h-0 border-x-8 border-x-transparent",
+                    showBelow
+                      ? "-top-4 left-1/2 -translate-x-1/2 border-b-8 border-b-[#181924]"
+                      : "-bottom-4 left-1/2 -translate-x-1/2 border-t-8 border-t-[#181924]"
+                  )}
+                  style={{ zIndex: 1000000 }}
+                />
+                {/* Close button */}
+                <button
+                  onClick={() => setSelectedIncident(null)}
+                  className="absolute top-2 right-2 text-white/70 hover:text-white text-xl font-bold rounded-full bg-transparent border-none p-0 m-0 cursor-pointer"
+                  aria-label="Close"
+                  style={{ zIndex: 1000001 }}
+                >
+                  ×
+                </button>
+                <div className="space-y-2">
+                  <h4 className="font-bold text-lg text-white leading-tight">{selectedIncident.title}</h4>
+                  <p className="text-sm text-gray-400">{selectedIncident.location}</p>
+                  <div className="flex items-center gap-2 pt-2">
+                    <Badge className={cn("text-xs px-3 py-1 font-semibold rounded-full", getSeverityStyles(selectedIncident.severity).badge)}>{selectedIncident.severity}</Badge>
+                    <Badge variant="secondary" className="text-xs px-3 py-1 font-semibold rounded-full bg-[#23243a] text-white border-none">{selectedIncident.type || 'Unknown'}</Badge>
+                  </div>
+                </div>
+              </div>
+            );
+          })(),
+          document.getElementById("map-modal-portal")
+        )}
       </div>
     </div>
   );

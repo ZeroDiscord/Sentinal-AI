@@ -1,6 +1,7 @@
 "use client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function ThankYouPage() {
   return (
@@ -13,8 +14,12 @@ export default function ThankYouPage() {
           Your report has been received. If you want to track your reports in the future, please sign in or create an account.
         </div>
         <div className="flex justify-center gap-4">
-          <Link href="/dashboard/report" className="btn btn-primary">Report Another</Link>
-          <Link href="/dashboard" className="btn btn-outline">Back to Dashboard</Link>
+          <Button asChild variant="default">
+            <Link href="/dashboard/report">Report Another</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/dashboard">Back to Dashboard</Link>
+          </Button>
         </div>
       </CardContent>
     </Card>
