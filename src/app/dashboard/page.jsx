@@ -243,8 +243,8 @@ export default function DashboardPage() {
     setModalViewMode('brief'); // Reset to brief for next open
   };
 
-  if (authLoading || (loading && role !== 'student')) {
-    return <FullPageLoader text="Loading Dashboard..." />;
+  if (loading || authLoading) {
+    return <FullPageLoader />;
   }
 
   if (role === "student") {

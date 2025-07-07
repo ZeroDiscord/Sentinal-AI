@@ -1,3 +1,8 @@
+# SentinelAI
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Online-brightgreen)](https://sentinal-ai-nine.vercel.app/)
+
+**Live Demo:** [https://sentinal-ai-nine.vercel.app/](https://sentinal-ai-nine.vercel.app/)
 
 <h1 align="center" style="font-size:2.5rem; font-weight:800; letter-spacing:-1px; margin-bottom:0.5em; font-family:'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, 'sans-serif';">
   <img src="public/favicon.svg" alt="SentinelAI Logo" style="height:2.2em; vertical-align:middle; margin-right:0.5em;" />
