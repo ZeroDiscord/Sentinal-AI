@@ -5,10 +5,10 @@
     SentinelAI Incident Reporting
   </span>
 </h1>
-<div style="max-width: 900px; margin: 2em auto; background: rgba(15,23,42,0.85); border-radius: 1.5em; box-shadow: 0 8px 32px 0 rgba(31,38,135,0.18); padding: 2.5em 2em; color: #f1f5f9; font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; border: 1px solid rgba(99,102,241,0.12);">
+<div style="max-width: 900px; margin: 2em auto; border-radius: 1.5em; box-shadow: 0 8px 32px 0 rgba(31,38,135,0.18); padding: 2.5em 2em; font-family: 'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif; border: 1px solid rgba(99,102,241,0.12);">
 
   <section style="margin-bottom: 2.5em;">
-    <h2 style="color: #60a5fa; font-size: 2rem; font-weight: 800; margin-bottom: 0.5em; letter-spacing: -1px;">
+    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 0.5em; letter-spacing: -1px;">
       <span style="vertical-align: middle;">&#128161; Why</span>
     </h2>
     <p style="font-size: 1.1em; color: #94a3b8;">
@@ -17,7 +17,7 @@
   </section>
 
   <section style="margin-bottom: 2.5em;">
-    <h2 style="color: #6366f1; font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
+    <h2 style="font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
       <span style="vertical-align: middle;">&#128187; Overview</span>
     </h2>
     <p style="font-size: 1.1em; color: #cbd5e1;">
@@ -26,13 +26,13 @@
   </section>
 
   <section style="margin-bottom: 2.5em;">
-    <h2 style="color: #22c55e; font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
+    <h2 style="font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
       <span style="vertical-align: middle;">&#128204; Motivation</span>
     </h2>
     <p style="font-size: 1.1em; color: #94a3b8;">
       Besides being a coder and a tech enthusiast, I am also an extremely engaged member of the University's official Student Discipline Committee, DC. In my committee work, one glaring lack that I have noticed is the lack of one, intelligent platform for reporting and managing incidents in the campus.
     </p>
-    <div style="background: rgba(99,102,241,0.08); border-radius: 1em; padding: 1em 1.5em; margin: 1.2em 0;">
+    <div style="border-radius: 1em; padding: 1em 1.5em; margin: 1.2em 0;">
       <p style="margin-bottom: 0.5em; color: #facc15; font-weight: 600;">Current students are tasked with physically forwarding an email to the Chief Proctor Office (CPO) for reporting emergency and disciplinary issues. The system is suboptimal and flawed:</p>
       <ul style="color: #f1f5f9; margin-left: 1.2em; list-style: disc;">
         <li>Emails are unstructured and hard to prioritize.</li>
@@ -56,7 +56,7 @@
   </section>
 
   <section style="margin-bottom: 2.5em;">
-    <h2 style="color: #facc15; font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
+    <h2 style="font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
       <span style="vertical-align: middle;">&#9889; Core Features</span>
     </h2>
     <ul style="margin-left: 1.2em; color: #f1f5f9; font-size: 1.08em; line-height: 1.7;">
@@ -70,7 +70,7 @@
   </section>
 
   <section style="margin-bottom: 2.5em;">
-    <h2 style="color: #ef4444; font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
+    <h2 style="font-size: 1.7rem; font-weight: 700; margin-bottom: 0.4em;">
       <span style="vertical-align: middle;">&#128187; Tech Stack</span>
     </h2>
     <ul style="margin-left: 1.2em; color: #cbd5e1; font-size: 1.08em; line-height: 1.7;">
