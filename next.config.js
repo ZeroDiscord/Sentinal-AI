@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  basePath: '/Sentinal-AI',
-  assetPrefix: '/Sentinal-AI/',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -10,7 +7,6 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',
