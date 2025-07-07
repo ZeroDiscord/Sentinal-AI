@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["school_proctor", "cpo", "secretary", "warden", "member"] },
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["student", "school_proctor", "cpo", "secretary", "warden", "member"] },
   { href: "/dashboard/map", icon: Map, label: "Live Map", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
   { href: "/dashboard/my-reports", icon: FilePlus, label: "My Reports", roles: ["student", "member", "secretary"] },
   // New "Reports" page for CPO/Admin

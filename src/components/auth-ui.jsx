@@ -102,6 +102,16 @@ export default function AuthUI({ variant = "header" }) {
   }
 
   // CARD VARIANT: Full form, all options, polished for theme
+  if (variant === "dropdown") {
+    if (user) {
+      return (
+        <Button variant="destructive" className="w-full" onClick={handleSignOut}>Sign Out</Button>
+      );
+    }
+    // If not signed in, render nothing (or you could render a disabled button or message)
+    return null;
+  }
+
   return (
     <div className="space-y-6 w-full flex flex-col items-center">
       <Button

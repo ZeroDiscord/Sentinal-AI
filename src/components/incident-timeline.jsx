@@ -2,9 +2,13 @@ import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Clock, CheckCircle, UserPlus, Eye, ListChecks } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import useUserNames from '@/hooks/useUserNames';
 
 const IncidentTimeline = ({ incident }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  // Add userNames for assignedTo
+  const assignedToId = incident?.assignedTo ? [incident.assignedTo] : [];
+  const userNames = useUserNames(assignedToId);
 
   if (!incident) {
     return (
@@ -60,7 +64,7 @@ const IncidentTimeline = ({ incident }) => {
       type: 'Assigned',
       icon: UserPlus,
       timestamp: assignedAtDate,
-      description: `Assigned to ${incident.assignedTo}.`,
+      description: `Assigned to ${userNames[incident.assignedTo] || incident.assignedTo}.`,
     });
   }
   

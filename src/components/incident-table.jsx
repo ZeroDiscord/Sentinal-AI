@@ -189,16 +189,16 @@ export default function IncidentTable({ incidents, onActionComplete, onViewIncid
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent border-b-white/10">
-            <TableHead>Incident ID</TableHead>
-            <TableHead className="hidden md:table-cell">Type</TableHead>
-            <TableHead>Severity</TableHead>
-            <TableHead>Priority</TableHead>
-            <TableHead className="hidden lg:table-cell">Reported By</TableHead>
-            <TableHead className="hidden md:table-cell">Date</TableHead>
-            <TableHead>School</TableHead>
-            <TableHead>Assigned To</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="px-6 py-3">Incident ID</TableHead>
+            <TableHead className="hidden md:table-cell px-6 py-3">Type</TableHead>
+            <TableHead className="px-6 py-3">Severity</TableHead>
+            <TableHead className="px-6 py-3">Priority</TableHead>
+            <TableHead className="hidden lg:table-cell px-6 py-3">Reported By</TableHead>
+            <TableHead className="hidden md:table-cell px-6 py-3">Date</TableHead>
+            <TableHead className="px-6 py-3">School</TableHead>
+            <TableHead className="px-6 py-3">Assigned To</TableHead>
+            <TableHead className="px-6 py-3">Status</TableHead>
+            <TableHead className="text-right px-6 py-3">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -207,8 +207,8 @@ export default function IncidentTable({ incidents, onActionComplete, onViewIncid
             <TableRow key={incident.id} className="hover:bg-white/5 border-b-white/10 last:border-b-0 cursor-pointer" onClick={() => {
               handleViewDetails(incident);
             }}>
-              <TableCell className="font-medium">{`#${incident.id.slice(-4).toUpperCase()}`}</TableCell>{/* Modified here */}
-              <TableCell className="hidden md:table-cell">{incident.type}</TableCell>
+              <TableCell className="px-6 py-3 font-medium">{`#${incident.id.slice(-4).toUpperCase()}`}</TableCell>
+              <TableCell className="hidden md:table-cell px-6 py-3">{incident.type}</TableCell>
               <TableCell>
                 {(() => {
                   const normalizedSeverity = incident.severity
@@ -244,12 +244,12 @@ export default function IncidentTable({ incidents, onActionComplete, onViewIncid
                   <span className="text-muted-foreground">-</span>
                 )}
               </TableCell>
-              <TableCell className="hidden lg:table-cell">
+              <TableCell className="hidden lg:table-cell px-6 py-3">
                 {incident.reportedBy === 'Anonymous' || !incident.reportedBy
                   ? 'Anonymous'
                   : userNames[incident.reportedBy] || incident.reportedBy}
               </TableCell>
-              <TableCell className="hidden md:table-cell whitespace-nowrap">
+              <TableCell className="hidden md:table-cell px-6 py-3 whitespace-nowrap">
                 {(() => {
                   let dateObj = null;
                   if (incident.date?.toDate) {
@@ -262,14 +262,14 @@ export default function IncidentTable({ incidents, onActionComplete, onViewIncid
                     : '-';
                 })()}
               </TableCell>
-              <TableCell>{incident.school || '-'}</TableCell>
-              <TableCell>{incident.assignedTo || <span className="text-muted-foreground">Unassigned</span>}</TableCell>
+              <TableCell className="px-6 py-3">{incident.school || '-'}</TableCell>
+              <TableCell className="px-6 py-3">{incident.assignedTo || <span className="text-muted-foreground">Unassigned</span>}</TableCell>
               <TableCell>
                    <Badge variant="outline" className={cn("text-xs font-medium flex items-center justify-center px-4 py-1 rounded-full whitespace-nowrap", getStatusBadgeClass((incident.derivedStatus || incident.status)?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())))}>
                      {(incident.derivedStatus || incident.status)?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                    </Badge>
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-right px-6 py-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                        {/* Prevent row click from firing when dropdown trigger is clicked */}
@@ -308,7 +308,7 @@ export default function IncidentTable({ incidents, onActionComplete, onViewIncid
               <SelectContent className="glass-card"> {/* Added glass-card class */}
                 {assignableUsers.map(u => (
                   <SelectItem key={u.id} value={u.id}>
-                    {u.displayName || u.name || u.email || u.id}
+                    {(u.displayName || u.name || u.id)}
                     {u.role ? ` (${u.role})` : ''}
                   </SelectItem>
                 ))}

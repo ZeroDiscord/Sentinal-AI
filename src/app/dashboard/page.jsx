@@ -103,13 +103,34 @@ export default function DashboardPage() {
     }
   }, [role, authLoading]);
 
-  // Data processing (remains the same)
-  const totalIncidents = incidents.length;
-  const activeIncidents = incidents.filter(i => i.status !== 'resolved').length;
-  const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length;
+  // Filter incidents for members: only show assigned incidents (case-insensitive, trimmed)
+  let visibleIncidents = incidents;
+  if (role && role.trim().toLowerCase() === 'member' && user) {
+    const userIds = [user.uid, user.displayName, user.email]
+      .filter(Boolean)
+      .map(val => val.trim().toLowerCase());
+    visibleIncidents = incidents.filter(i =>
+      userIds.includes((i.assignedTo || '').trim().toLowerCase())
+    );
+  }
+  // Filter attentionIncidents for members as well
+  let visibleAttentionIncidents = attentionIncidents;
+  if (role && role.trim().toLowerCase() === 'member' && user) {
+    const userIds = [user.uid, user.displayName, user.email]
+      .filter(Boolean)
+      .map(val => val.trim().toLowerCase());
+    visibleAttentionIncidents = attentionIncidents.filter(i =>
+      userIds.includes((i.assignedTo || '').trim().toLowerCase())
+    );
+  }
+
+  // Data processing (remains the same, but use visibleIncidents)
+  const totalIncidents = visibleIncidents.length;
+  const activeIncidents = visibleIncidents.filter(i => i.status !== 'resolved').length;
+  const resolvedIncidents = visibleIncidents.filter(i => i.status === 'resolved').length;
   
   const donutData = Object.entries(
-    incidents.reduce((acc, i) => {
+    visibleIncidents.reduce((acc, i) => {
       const severity = (i.severity || 'default').toLowerCase().replace('medium', 'medium');
       acc[severity] = (acc[severity] || 0) + 1;
       return acc;
@@ -121,7 +142,7 @@ export default function DashboardPage() {
   })).filter(item => item.value > 0);
 
   const calculateResolutionMetrics = () => {
-    const resolvedIncidentsList = incidents.filter(i => i.status === 'resolved' && i.resolvedAt && i.createdAt);
+    const resolvedIncidentsList = visibleIncidents.filter(i => i.status === 'resolved' && i.resolvedAt && i.createdAt);
     const totalResolved = resolvedIncidentsList.length;
 
     const overallResolutionPercentage = totalIncidents > 0 ? ((resolvedIncidents / totalIncidents) * 100).toFixed(1) : 0;
@@ -158,7 +179,7 @@ export default function DashboardPage() {
 
   const { overallResolutionPercentage, formattedAverageResolutionTime } = calculateResolutionMetrics();
 
-  // Compute status counts per severity
+  // Compute status counts per severity (use visibleIncidents)
   const severities = ['critical', 'high', 'medium', 'low'];
   const statusLabels = [
     { key: 'unread', label: 'Unread', color: 'bg-gray-400' },
@@ -182,7 +203,7 @@ export default function DashboardPage() {
   severities.forEach(sev => {
     statusBySeverity[sev] = { unread: 0, read: 0, assigned: 0, resolved: 0 };
   });
-  incidents.forEach(i => {
+  visibleIncidents.forEach(i => {
     const sev = (i.severity || '').toLowerCase();
     if (!severities.includes(sev)) return;
     if (i.status === 'resolved') {
@@ -350,7 +371,7 @@ export default function DashboardPage() {
       {/* This sorting logic is placed here as it relates to rendering the table later */}
       {(() => {
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-        const sortedAttentionIncidents = [...attentionIncidents].sort((a, b) => {
+        const sortedAttentionIncidents = [...visibleAttentionIncidents].sort((a, b) => {
           const sevA = (a.severity || '').toLowerCase();
           const sevB = (b.severity || '').toLowerCase();
           return (severityOrder[sevA] ?? 99) - (severityOrder[sevB] ?? 99);

@@ -10,6 +10,7 @@ import FullPageLoader from "@/components/ui/full-page-loader";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import IncidentBriefDialogContent from "@/components/incident-brief-dialog-content";
 
 export default function ReportsPage() {
   const [incidents, setIncidents] = useState([]);
@@ -24,6 +25,10 @@ export default function ReportsPage() {
   // Filter state
   const [severityFilter, setSeverityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Add state for snapshot modal
+  const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
+  const [selectedIncidentIdForSnapshot, setSelectedIncidentIdForSnapshot] = useState(null);
 
   useEffect(() => {
     // This page is intended for CPO/Admin, but we'll fetch data if user is logged in.
@@ -44,7 +49,14 @@ export default function ReportsPage() {
   }, [authLoading]); // Depend on authLoading to ensure user state is ready
 
   // Compute filtered incidents
-  const filteredIncidents = incidents.map(inc => {
+  let visibleIncidents = incidents;
+  if (role === 'member' && user) {
+    const userIds = [user.uid, user.displayName, user.email].filter(Boolean);
+    visibleIncidents = incidents.filter(inc =>
+      userIds.includes(inc.assignedTo) || userIds.includes(inc.reportedBy)
+    );
+  }
+  const filteredIncidents = visibleIncidents.map(inc => {
     // Derive status for filtering and display
     let derivedStatus = inc.status;
     if (inc.status !== 'resolved' && inc.assignedTo) {
@@ -58,9 +70,17 @@ export default function ReportsPage() {
     return sevMatch && statusMatch;
   });
 
-  // Handler for opening the full incident details modal
-  const handleViewFullIncidentDetails = (incidentData) => {
-    setSelectedIncidentIdForFull(incidentData.id);
+  // Update handler for row click to open snapshot modal
+  const handleViewSnapshot = (incidentData) => {
+    setSelectedIncidentIdForSnapshot(incidentData.id);
+    setIsSnapshotModalOpen(true);
+  };
+
+  // Handler for opening the full incident details modal from snapshot
+  const handleViewFullIncidentDetails = (incidentId) => {
+    setIsSnapshotModalOpen(false);
+    setSelectedIncidentIdForSnapshot(null);
+    setSelectedIncidentIdForFull(incidentId);
     setIsFullModalOpen(true);
   };
 
@@ -128,10 +148,10 @@ export default function ReportsPage() {
             <div className="text-muted-foreground text-center glass-card p-8 rounded-lg">No incidents found.</div>
           ) : (
             <div className="overflow-x-auto w-full">
-              {/* This IncidentTable will open the FULL details modal */}
+              {/* This IncidentTable will open the snapshot modal on row click */}
               <IncidentTable 
                 incidents={filteredIncidents} 
-                onViewIncident={handleViewFullIncidentDetails} 
+                onViewIncident={handleViewSnapshot} 
                 onActionComplete={handleIncidentActionComplete} 
               />
             </div>
@@ -139,7 +159,29 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Full Incident Details Modal (for the /dashboard/reports page) */}
+      {/* Snapshot Card Modal */}
+      {selectedIncidentIdForSnapshot && (
+        <Dialog open={isSnapshotModalOpen} onOpenChange={setIsSnapshotModalOpen}>
+          <DialogContent className="sm:max-w-[500px] glass-card max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Incident Snapshot</DialogTitle>
+              <DialogDescription>
+                A quick overview of the incident.
+              </DialogDescription>
+            </DialogHeader>
+            <IncidentBriefDialogContent 
+              incident={filteredIncidents.find(i => i.id === selectedIncidentIdForSnapshot)} 
+              onClose={() => {
+                setIsSnapshotModalOpen(false);
+                setSelectedIncidentIdForSnapshot(null);
+              }}
+              onViewFullReport={handleViewFullIncidentDetails}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Full Details Modal */}
       {selectedIncidentIdForFull && (
         <Dialog open={isFullModalOpen} onOpenChange={setIsFullModalOpen}>
           <DialogContent className="sm:max-w-[800px] lg:max-w-[1000px] glass-card max-h-[90vh] overflow-y-auto">
@@ -154,8 +196,8 @@ export default function ReportsPage() {
               onClose={() => {
                 setIsFullModalOpen(false);
                 setSelectedIncidentIdForFull(null);
-                handleIncidentActionComplete(); // Trigger refresh on close
-              }} 
+                handleIncidentActionComplete();
+              }}
             />
           </DialogContent>
         </Dialog>

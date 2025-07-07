@@ -78,7 +78,24 @@
   }
 }
 
-/* Custom scrollbar for incident table */
-.custom-scrollbar::-webkit-scrollbar { height: 8px; background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
-.custom-scrollbar { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+/* Universal dark scrollbar styles */
+* {
+  scrollbar-color: #23272f #181a20;
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  background: #181a20;
+}
+::-webkit-scrollbar-thumb {
+  background: #23272f;
+  border-radius: 8px;
+  border: 2px solid #181a20;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4252;
+}
+::-webkit-scrollbar-track {
+  background: #181a20;
+  border-radius: 8px;
+}

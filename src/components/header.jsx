@@ -216,9 +216,26 @@ export default function Header() {
             </Popover>
           </>
         )}
-        {!isLanding && (
-          <div className="ml-auto">
-            <AuthUI variant="header" />
+        {!isLanding && user && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden md:inline text-sm text-foreground/80 font-medium">
+              {user.displayName || user.email}
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full p-0">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName || user.email || 'User'} />
+                    <AvatarFallback>{(user.displayName || user.email || 'U').slice(0,2).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-card min-w-[180px]">
+                <DropdownMenuItem asChild>
+                  <AuthUI variant="dropdown" />
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>

@@ -66,12 +66,21 @@ export default function DashboardPage() {
   }, [role, authLoading]);
 
   // Data processing
-  const totalIncidents = incidents.length;
-  const activeIncidents = incidents.filter(i => i.status !== 'resolved').length;
-  const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length; // Corrected calculation
+  let visibleIncidents = incidents;
+  if (role && role.trim().toLowerCase() === 'member' && user) {
+    const userIds = [user.uid, user.displayName, user.email]
+      .filter(Boolean)
+      .map(val => val.trim().toLowerCase());
+    visibleIncidents = incidents.filter(i =>
+      userIds.includes((i.assignedTo || '').trim().toLowerCase())
+    );
+  }
+  const totalIncidents = visibleIncidents.length;
+  const activeIncidents = visibleIncidents.filter(i => i.status !== 'resolved').length;
+  const resolvedIncidents = visibleIncidents.filter(i => i.status === 'resolved').length;
   
   const donutData = Object.entries(
-    incidents.reduce((acc, i) => {
+    visibleIncidents.reduce((acc, i) => {
       const severity = (i.severity || 'default').toLowerCase().replace('medium', 'moderate');
       acc[severity] = (acc[severity] || 0) + 1;
       return acc;
@@ -84,7 +93,7 @@ export default function DashboardPage() {
 
   // --- New Data Calculations for Resolution Metrics ---
   const calculateResolutionMetrics = () => {
-    const resolvedIncidentsList = incidents.filter(i => i.status === 'resolved' && i.resolvedAt && i.createdAt);
+    const resolvedIncidentsList = visibleIncidents.filter(i => i.status === 'resolved' && i.resolvedAt && i.createdAt);
     const totalResolved = resolvedIncidentsList.length;
 
     // Overall Resolution Percentage
@@ -264,12 +273,12 @@ export default function DashboardPage() {
                 <IncidentTableSkeleton />
               ) : error ? (
                 <div className="text-destructive glass-card p-4 rounded-lg">{error}</div>
-              ) : incidents.length === 0 ? (
+              ) : visibleIncidents.length === 0 ? (
                 <div className="text-muted-foreground text-center glass-card p-8 rounded-lg">No incidents found.</div>
               ) : (
                 <div className="overflow-x-auto w-full">
                   {/* Pass handleViewIncident to IncidentTable */}
-                  <IncidentTable incidents={incidents} onViewIncident={handleViewIncident} onActionComplete={handleIncidentActionComplete} />
+                  <IncidentTable incidents={visibleIncidents} onViewIncident={handleViewIncident} onActionComplete={handleIncidentActionComplete} />
                 </div>
               )}
             </div>

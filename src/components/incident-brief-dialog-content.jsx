@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { format } from 'date-fns';
+import { format, differenceInSeconds, formatDuration, intervalToDuration, formatDistanceStrict } from 'date-fns';
 import { Clock, CheckCircle, UserPlus, Eye, ListChecks } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import useUserNames from '@/hooks/useUserNames';
 
 const getSeverityStyles = (severity) => {
   switch (severity?.toLowerCase()) {
@@ -31,6 +32,8 @@ const getStatusBadgeClass = (status) => {
 const IncidentBriefDialogContent = ({ incident, onClose, onViewFullReport }) => {
   const { user, role } = useAuth();
   const [liveIncident, setLiveIncident] = useState(incident);
+  const assignedToId = liveIncident?.assignedTo ? [liveIncident.assignedTo] : [];
+  const userNames = useUserNames(assignedToId);
 
   useEffect(() => {
     if (!incident?.id) return;
@@ -106,7 +109,7 @@ const IncidentBriefDialogContent = ({ incident, onClose, onViewFullReport }) => 
       type: 'Assigned',
       icon: UserPlus,
       timestamp: assignedAtDate,
-      description: `Assigned to ${liveIncident.assignedTo}.`,
+      description: `Assigned to ${userNames[liveIncident.assignedTo] || liveIncident.assignedTo}.`,
     });
   }
   const inProgressAtDate = safeToDate(liveIncident?.inProgressAt);
@@ -157,26 +160,42 @@ const IncidentBriefDialogContent = ({ incident, onClose, onViewFullReport }) => 
 
       {timelineEvents.length > 0 && (
         <div className="w-full flex flex-col items-center mt-4 mb-2">
-          <div className="flex flex-row items-center justify-center gap-4 w-full">
-            {timelineEvents.map((event, idx) => (
-              <div
-                key={idx}
-                className="group flex flex-col items-center px-3 py-2 bg-background/80 border border-border rounded-xl shadow transition-all duration-150 hover:border-primary hover:bg-primary/10 relative"
-              >
-                <div className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-border bg-background group-hover:border-primary group-hover:bg-primary/10 transition-colors duration-150 mb-1">
-                  <event.icon className="w-5 h-5 group-hover:text-primary text-muted-foreground" />
-                </div>
-                <span className="text-xs font-semibold text-foreground">{event.type}</span>
-                <div className="hidden group-hover:block absolute -top-24 left-1/2 -translate-x-1/2 bg-background border border-border rounded-lg shadow-lg px-4 py-2 z-20 min-w-[180px] text-left animate-fade-in">
-                  <div className="font-semibold text-primary mb-1 flex items-center gap-2">
-                    <event.icon className="w-4 h-4" />
-                    {event.type}
+          <div className="relative w-full max-w-xs mx-auto flex flex-col items-center">
+            {timelineEvents.map((event, idx) => {
+              let delta = null;
+              if (idx > 0) {
+                const prev = timelineEvents[idx - 1];
+                const seconds = differenceInSeconds(event.timestamp, prev.timestamp);
+                if (seconds > 0) {
+                  delta = formatDistanceStrict(prev.timestamp, event.timestamp, { roundingMethod: 'floor' });
+                }
+              }
+              return (
+                <div key={idx} className="flex items-center w-full relative">
+                  {/* Timeline line (except for last event) */}
+                  <div className="flex flex-col items-center mr-4">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-border bg-background z-10">
+                      <event.icon className="w-5 h-5 text-primary" />
+                    </div>
+                    {idx < timelineEvents.length - 1 && (
+                      <div className="w-px h-8 bg-border mx-auto" />
+                    )}
                   </div>
-                  <div className="text-xs text-muted-foreground mb-1">{format(event.timestamp, 'MMM dd, yyyy HH:mm')}</div>
-                  <div className="text-sm text-foreground/90">{event.description}</div>
+                  <div className="flex-1 py-2">
+                    <div className="font-semibold text-primary text-sm flex items-center gap-2">
+                      {event.type}
+                    </div>
+                    {delta && (
+                      <div className="inline-block mt-1 mb-1 px-2 py-0.5 rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+                        +{delta}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground mb-1">{format(event.timestamp, 'MMM dd, yyyy HH:mm')}</div>
+                    <div className="text-sm text-foreground/90">{event.description}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
