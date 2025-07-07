@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, LayoutDashboard, FilePlus, User, LogOut, Map, ChevronLeft, ChevronRight } from "lucide-react";
+import { Shield, LayoutDashboard, FilePlus, User, LogOut, Map, ChevronLeft, ChevronRight, Files } from "lucide-react"; // Added Files icon
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -10,6 +10,8 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["school_proctor", "cpo", "secretary", "warden", "member"] },
   { href: "/dashboard/map", icon: Map, label: "Live Map", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
   { href: "/dashboard/my-reports", icon: FilePlus, label: "My Reports", roles: ["student", "member", "secretary"] },
+  // New "Reports" page for CPO/Admin
+  { href: "/dashboard/reports", icon: Files, label: "Reports", roles: ["school_proctor", "cpo", "secretary", "warden", "member"] }, // Added new item
   { href: "/dashboard/report", icon: FilePlus, label: "Report Incident", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
   { href: "/dashboard/admin", icon: Shield, label: "Admin Panel", roles: ["cpo"] },
   { href: "/dashboard/profile", icon: User, label: "Profile", roles: ["student", "member", "secretary", "warden", "school_proctor", "cpo"] },
@@ -20,7 +22,6 @@ export default function AppSidebar({ collapsed, setCollapsed }) {
   const pathname = usePathname();
 
   if (loading) {
-    // Optionally render a sidebar skeleton here
     return null;
   }
 
@@ -29,10 +30,15 @@ export default function AppSidebar({ collapsed, setCollapsed }) {
       return item.label === 'Live Map' || item.label === 'Report Incident';
     }
     if (user.isAnonymous) {
-      return item.label !== 'My Reports' && item.label !== 'Admin Panel';
+      return item.label !== 'My Reports' && item.label !== 'Admin Panel' && item.label !== 'Reports'; // Exclude Reports for anonymous
     }
+    // Specific role checks for Admin Panel and new Reports page
     if (item.label === 'Admin Panel') {
       return role === 'cpo';
+    }
+    // For "Reports", check if the user's role is included in the item's allowed roles
+    if (item.label === 'Reports') {
+        return item.roles.includes(role);
     }
     return item.roles.includes(role);
   });

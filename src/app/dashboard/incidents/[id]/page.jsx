@@ -1,533 +1,299 @@
 "use client";
-import { useEffect, useState, use as usePromise, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, User, MapPin, Pencil, Trash2, RefreshCw } from "lucide-react";
-import AIAnalysis from "@/components/ai-analysis";
-import IncidentForm from "@/components/incident-form";
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertCircle, CheckCircle, ShieldQuestion, FilePlus, Map as MapIcon, Clock } from "lucide-react"; // Added Clock for new icon
+import IncidentTable from "@/components/incident-table";
+import IncidentDetailsView from "@/components/IncidentDetailsView"; // Import the new details view component
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import Image from "next/image";
+import IncidentTableSkeleton from "@/components/incident-table-skeleton";
+import FullPageLoader from "@/components/ui/full-page-loader";
+import { Button } from "@/components/ui/button";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"; // Ensure Dialog components are imported
 
-const CAMPUS_MAPS = {
-  bidholi: {
-    name: "Bidholi",
-    image: "/maps/upes-bidholi.png",
-    satellite: "/maps/upes-bidholi_sat.png",
-  },
-  kandoli: {
-    name: "Kandoli",
-    image: "/maps/upes-kandoli.png",
-    satellite: "/maps/upes-kandoli_sat.png",
-  },
+const severityConfig = {
+  critical: { color: '#ef4444', label: 'Critical' },
+  high: { color: '#f97316', label: 'High' },
+  moderate: { color: '#f59e0b', label: 'Moderate' },
+  low: { color: '#3b82f6', label: 'Low' },
+  default: { color: '#6b7280', label: 'Unknown' },
 };
 
-export default function IncidentDetailsPage({ params }) {
-  const unwrappedParams = usePromise(params);
-  const [incident, setIncident] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [reanalyzing, setReanalyzing] = useState(false);
-  const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(false);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteError, setDeleteError] = useState(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const { user, role } = useAuth();
-  const router = useRouter();
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
-  const [users, setUsers] = useState([]);
-  const [assignTo, setAssignTo] = useState("");
-  const [assignLoading, setAssignLoading] = useState(false);
-  const [resolveLoading, setResolveLoading] = useState(false);
-  const [mapType, setMapType] = useState(null);
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragging = useRef(false);
-  const lastPos = useRef({ x: 0, y: 0 });
-  const [reporterName, setReporterName] = useState(null);
-  const reporterCache = useRef({});
-
-  const fetchIncident = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const id = unwrappedParams.id.padStart(3, '0');
-      const res = await fetch(`/api/incidents/${id}`);
-      const data = await res.json();
-      if (res.ok) setIncident(data.incident);
-      else setError(data.error || "Incident not found");
-    } catch (err) {
-      setError("Failed to fetch incident");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchIncident();
-    // eslint-disable-next-line
-  }, [unwrappedParams.id]);
-
-  useEffect(() => {
-    if (assignDialogOpen) {
-      getDocs(collection(db, "users")).then(snap => {
-        setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
-    }
-  }, [assignDialogOpen]);
-
-  useEffect(() => {
-    async function fetchReporterName() {
-      if (!incident || !incident.reportedBy || incident.reportedBy === 'Anonymous' || incident.reportedBy === 'anonymous') {
-        setReporterName('Anonymous');
-        return;
-      }
-      if (reporterCache.current[incident.reportedBy]) {
-        setReporterName(reporterCache.current[incident.reportedBy]);
-        return;
-      }
-      try {
-        const userDoc = await getDoc(doc(db, 'users', incident.reportedBy));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          const name = data.name || data.displayName || incident.reportedBy;
-          reporterCache.current[incident.reportedBy] = name;
-          setReporterName(name);
-        } else {
-          setReporterName(incident.reportedBy);
-        }
-      } catch {
-        setReporterName(incident.reportedBy);
-      }
-    }
-    fetchReporterName();
-  }, [incident]);
-
-  const handleDelete = async () => {
-    setDeleteLoading(true);
-    setDeleteError(null);
-    try {
-      const token = user && (await user.getIdToken());
-      const res = await fetch(`/api/incidents/${incident.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        router.push("/dashboard");
-      } else {
-        const data = await res.json();
-        setDeleteError(data.error || "Failed to delete incident");
-      }
-    } catch (err) {
-      setDeleteError("Failed to delete incident");
-    } finally {
-      setDeleteLoading(false);
-      setShowDeleteDialog(false);
-    }
-  };
-
-  async function handleReanalyze() {
-    setReanalyzing(true);
-    try {
-      const id = unwrappedParams.id.padStart(3, '0');
-      const token = user && (await user.getIdToken());
-      const response = await fetch(`/api/incidents/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setIncident(data.incident);
-        // Force re-fetch to get the latest data from Firestore
-        await fetchIncident();
-        // Show success message or toast
-        console.log('Incident re-analyzed successfully');
-      } else {
-        console.error('Failed to re-analyze incident');
-      }
-    } catch (error) {
-      console.error('Error re-analyzing incident:', error);
-    } finally {
-      setReanalyzing(false);
-    }
-  }
-
-  const assignableUsers = users.filter(u => ["member", "secretary"].includes(u.role));
-
-  async function handleAssign() {
-    setAssignLoading(true);
-    try {
-      const token = user && (await user.getIdToken());
-      const res = await fetch(`/api/incidents/${incident.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ assignedTo: assignTo }),
-      });
-      if (res.ok) {
-        setAssignDialogOpen(false);
-        fetchIncident();
-      }
-    } finally {
-      setAssignLoading(false);
-    }
-  }
-
-  async function handleResolve() {
-    setResolveLoading(true);
-    try {
-      const token = user && (await user.getIdToken());
-      const res = await fetch(`/api/incidents/${incident.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status: "resolved" }),
-      });
-      if (res.ok) {
-        setResolveDialogOpen(false);
-        fetchIncident();
-      }
-    } finally {
-      setResolveLoading(false);
-    }
-  }
-
-  // Handlers for zoom and pan
-  const handleWheel = (e) => {
-    e.preventDefault();
-    setZoom(z => Math.max(1, Math.min(3, z + (e.deltaY < 0 ? 0.1 : -0.1))));
-  };
-  const handleMouseDown = (e) => {
-    dragging.current = true;
-    lastPos.current = { x: e.clientX, y: e.clientY };
-  };
-  const handleMouseUp = () => {
-    dragging.current = false;
-  };
-  const handleMouseMove = (e) => {
-    if (!dragging.current) return;
-    setOffset(off => ({
-      x: off.x + (e.clientX - lastPos.current.x),
-      y: off.y + (e.clientY - lastPos.current.y),
-    }));
-    lastPos.current = { x: e.clientX, y: e.clientY };
-  };
-  const handleDoubleClick = () => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-  };
-
-  if (loading) return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      <div className="glass-card p-8">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <Skeleton className="h-8 w-48 mb-2" />
-            <Skeleton className="h-4 w-32" />
-          </div>
-          <Skeleton className="h-6 w-24" />
-        </div>
-        <div className="flex gap-4 mb-6">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-40" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-        <Skeleton className="h-24 w-full mb-4" />
-        <Skeleton className="h-8 w-40" />
+// MetricCard: icon larger and centered
+const MetricCard = ({ title, value, description, icon: Icon }) => (
+  <Card className="glass-card h-full flex flex-col justify-center p-6">
+    <div className="flex justify-between items-center h-12 mb-2">
+      <div className="flex flex-col justify-center">
+        <span className="text-sm font-medium text-muted-foreground">{title}</span>
+        <span className="text-3xl font-bold">{value}</span>
       </div>
+      <Icon className="h-8 w-8 text-muted-foreground" />
     </div>
-  );
-  if (error) return <div className="text-destructive">{error}</div>;
-  if (!incident) return <div>No incident found.</div>;
+    <p className="text-xs text-muted-foreground mt-2">{description}</p>
+  </Card>
+);
+
+export default function DashboardPage() {
+  const [incidents, setIncidents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { user, role, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  // State for modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedIncidentId, setSelectedIncidentId] = useState(null);
+
+  useEffect(() => {
+    if (authLoading) return;
+    const allowedRoles = ["school_proctor", "cpo", "secretary", "warden", "member"];
+    if (allowedRoles.includes(role)) {
+      const q = query(collection(db, "incidents"), orderBy("createdAt", "desc"));
+      const unsub = onSnapshot(q, (snapshot) => {
+        setIncidents(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      }, (err) => {
+        setError("Failed to fetch incidents");
+        setLoading(false);
+        console.error(err);
+      });
+      return () => unsub();
+    } else if (role === "student") {
+        setLoading(false);
+    }
+  }, [role, authLoading]);
+
+  // Data processing
+  const totalIncidents = incidents.length;
+  const activeIncidents = incidents.filter(i => i.status !== 'resolved').length;
+  const resolvedIncidents = incidents.filter(i => i.status === 'resolved').length; // Corrected calculation
+  
+  const donutData = Object.entries(
+    incidents.reduce((acc, i) => {
+      const severity = (i.severity || 'default').toLowerCase().replace('medium', 'moderate');
+      acc[severity] = (acc[severity] || 0) + 1;
+      return acc;
+    }, {})
+  ).map(([name, value]) => ({
+    name: severityConfig[name]?.label || 'Unknown',
+    value,
+    color: severityConfig[name]?.color || severityConfig.default.color,
+  })).filter(item => item.value > 0);
+
+  // --- New Data Calculations for Resolution Metrics ---
+  const calculateResolutionMetrics = () => {
+    const resolvedIncidentsList = incidents.filter(i => i.status === 'resolved' && i.resolvedAt && i.createdAt);
+    const totalResolved = resolvedIncidentsList.length;
+
+    // Overall Resolution Percentage
+    const overallResolutionPercentage = totalIncidents > 0 ? ((resolvedIncidents / totalIncidents) * 100).toFixed(1) : 0;
+
+    // Average Resolution Time
+    let totalResolutionTime = 0; // in milliseconds
+    resolvedIncidentsList.forEach(i => {
+      // Ensure resolvedAt and createdAt are Firebase Timestamps before calling .toDate()
+      const createdAt = i.createdAt?.toDate ? i.createdAt.toDate() : new Date(i.createdAt);
+      const resolvedAt = i.resolvedAt?.toDate ? i.resolvedAt.toDate() : new Date(i.resolvedAt);
+      totalResolutionTime += (resolvedAt.getTime() - createdAt.getTime());
+    });
+
+    const averageResolutionTimeMs = totalResolved > 0 ? totalResolutionTime / totalResolved : 0;
+
+    // Convert milliseconds to a more readable format (e.g., days, hours)
+    const msToDays = (ms) => {
+      const seconds = Math.floor(ms / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+
+      if (days > 0) return `${days} day${days > 1 ? 's' : ''}`;
+      if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''}`;
+      if (minutes > 0) return `${minutes} min${minutes > 1 ? 's' : ''}`;
+      return `${seconds} sec${seconds > 1 ? 's' : ''}`;
+    };
+
+    const formattedAverageResolutionTime = averageResolutionTimeMs > 0 ? msToDays(averageResolutionTimeMs) : 'N/A';
+
+    return {
+      overallResolutionPercentage,
+      formattedAverageResolutionTime,
+    };
+  };
+
+  const { overallResolutionPercentage, formattedAverageResolutionTime } = calculateResolutionMetrics();
+  // --- End New Data Calculations ---
+
+  // Handle opening modal for incident details
+  const handleViewIncident = (incidentData) => {
+    setSelectedIncidentId(incidentData.id);
+    setIsModalOpen(true);
+  };
+
+  // Function to re-fetch incidents after an action in the modal (e.g., assign, resolve)
+  const handleIncidentActionComplete = () => {
+    // A simple way to trigger re-fetch on the dashboard is to unset and then set selectedIncidentId
+    // or, more robustly, refetch all incidents as done in the useEffect.
+    // For now, onSnapshot will naturally re-trigger due to Firestore changes.
+    // If you need to force an immediate refresh for the entire dashboard:
+    // (e.g., fetch all incidents again if onSnapshot delays or doesn't cover the specific change)
+    // setIncidents([]); // Clear current list to show skeleton
+    // setLoading(true);
+    // (then re-run the query in useEffect or a separate function)
+  };
+
+
+  if (authLoading || (loading && role !== 'student')) {
+    return <FullPageLoader text="Loading Dashboard..." />;
+  }
+
+  if (role === "student") {
+    // Student-specific landing view
+    return (
+        <div className="flex flex-col items-center justify-center h-full p-4">
+            <div className="w-full max-w-lg text-center glass-card p-8 rounded-xl">
+                 <h1 className="text-3xl font-bold mb-2">Welcome to SentinelAI</h1>
+                 <p className="text-muted-foreground mb-6">As a student, you can report incidents and view the live map using the sidebar.</p>
+                 <Button onClick={() => router.push('/dashboard/report')} size="lg">
+                    <FilePlus className="mr-2 h-5 w-5" />
+                    Report an Incident
+                 </Button>
+            </div>
+        </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 space-y-10">
-      <div className="space-y-8">
-        {editing ? (
-          <IncidentForm
-            incident={incident}
-            onSuccess={() => {
-              setEditing(false);
-              fetchIncident();
-            }}
-          />
-        ) : (
-          <Card className="glass-card">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-2xl">{incident.title}</CardTitle>
-                  <CardDescription>Incident ID: {incident.id}</CardDescription>
-                  <div className="flex items-center gap-4 mt-2">
-                    <span className="font-mono font-bold text-lg text-primary">Priority: {typeof incident.priorityScore === 'number' ? incident.priorityScore.toFixed(1) : '-'}</span>
-                    <Badge variant="outline" className="text-xs">{incident.status || 'open'}</Badge>
-                    <span className="text-xs text-muted-foreground">Assigned to: {incident.assignedTo || 'Unassigned'}</span>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-lg">{incident.status}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Map display for this incident with toggle and zoom */}
-              {incident.campus && incident.marker && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-semibold">Location on Map ({CAMPUS_MAPS[incident.campus]?.name})</span>
-                    <Button
-                      type="button"
-                      variant={((mapType ?? incident.mapType) !== 'satellite') ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setMapType('default')}
-                    >
-                      Default
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={((mapType ?? incident.mapType) === 'satellite') ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setMapType('satellite')}
-                    >
-                      Satellite
-                    </Button>
-                    <span className="ml-auto text-xs text-muted-foreground">Scroll to zoom, drag to pan, double-click to reset</span>
-                  </div>
-                  <div
-                    className="relative mx-auto select-none"
-                    style={{
-                      width: "100%",
-                      maxWidth: "1200px",
-                      aspectRatio: "16/9",
-                      borderRadius: "0.75rem",
-                      overflow: "hidden",
-                      border: "1px solid var(--border-color)",
-                      cursor: zoom ? "grab" : "default",
-                    }}
-                    onWheel={handleWheel}
-                    onMouseDown={handleMouseDown}
-                    onMouseUp={handleMouseUp}
-                    onMouseMove={handleMouseMove}
-                    onMouseLeave={handleMouseUp}
-                    onDoubleClick={handleDoubleClick}
-                  >
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
-                        transition: dragging.current ? "none" : "transform 0.2s",
-                        position: "relative",
-                      }}
-                    >
-                      <Image
-                        src={(mapType ?? incident.mapType) === 'satellite' ? CAMPUS_MAPS[incident.campus].satellite : CAMPUS_MAPS[incident.campus].image}
-                        alt={`${CAMPUS_MAPS[incident.campus]?.name} Campus Map ${(mapType ?? incident.mapType) === 'satellite' ? '(Satellite)' : ''}`}
-                        fill
-                        className="object-contain"
-                        priority
-                        draggable={false}
-                        style={{ userSelect: "none", pointerEvents: "none" }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          top: `${incident.marker.y}%`,
-                          left: `${incident.marker.x}%`,
-                          transform: "translate(-50%, -50%)",
-                          zIndex: 10,
-                          pointerEvents: "none",
-                        }}
-                        className="inline-block w-6 h-6 bg-red-600 rounded-full border-2 border-white shadow-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center justify-between mb-6">
-                <h1 className="text-3xl font-bold">Incident Details</h1>
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleReanalyze} 
-                    disabled={reanalyzing}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${reanalyzing ? 'animate-spin' : ''}`} />
-                    {reanalyzing ? 'Re-Analyzing...' : 'Re-Analyze with AI'}
-                  </Button>
-                  {user && (role === 'cpo' || role === 'school_proctor') && (
-                    <>
-                      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="secondary" className="ml-2">Assign</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader><DialogTitle>Assign Incident</DialogTitle></DialogHeader>
-                          <div className="space-y-4">
-                            <Select value={assignTo} onValueChange={setAssignTo}>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select user to assign" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {assignableUsers.map(u => (
-                                  <SelectItem key={u.id} value={u.name || u.email || u.id}>{u.name || u.email} ({u.role})</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <DialogFooter>
-                            <Button onClick={handleAssign} disabled={!assignTo || assignLoading}>
-                              {assignLoading ? "Assigning..." : "Assign"}
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                      <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button variant="destructive" className="ml-2">Resolve</Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader><DialogTitle>Resolve Incident</DialogTitle></DialogHeader>
-                          <p>Are you sure you want to mark this incident as resolved?</p>
-                          <DialogFooter>
-                            <Button onClick={handleResolve} variant="destructive" disabled={resolveLoading}>
-                              {resolveLoading ? "Resolving..." : "Yes, Resolve"}
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mb-6">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Reported on {incident.date ? new Date(incident.date).toLocaleString() : 'Unknown'}
-                </div>
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  By {reporterName}{incident && incident.reporterRole ? ` (${incident.reporterRole})` : ''}
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" /> At {incident.location}
-                </div>
-              </div>
-              <div className="prose prose-invert max-w-none text-foreground/80">
-                <h3 className="text-foreground">Description</h3>
-                <p>{incident.description}</p>
-                {incident.summary && (
-                  <>
-                    <h4 className="mt-4 text-foreground">AI Summary</h4>
-                    <p>{incident.summary}</p>
-                  </>
-                )}
-                {incident.tags && incident.tags.length > 0 && (
-                  <>
-                    <h4 className="mt-4 text-foreground">AI Tags</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {incident.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                      ))}
-                    </div>
-                  </>
-                )}
-                {incident.escalationReason && (
-                  <>
-                    <h4 className="mt-4 text-foreground">Escalation Reason</h4>
-                    <p>{incident.escalationReason}</p>
-                  </>
-                )}
-                {incident.aiSeverities && (
-                  <>
-                    <h4 className="mt-4 text-foreground">AI Severities (All Flows)</h4>
-                    <ul className="list-disc ml-6 text-sm">
-                      {Object.entries(incident.aiSeverities).map(([flow, sev]) => (
-                        <li key={flow}><span className="font-semibold">{flow}:</span> {sev || 'N/A'}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
-              {user && (
-                <div className="flex gap-3 mt-8">
-                  <Button variant="default" size="sm" onClick={() => setEditing(true)} className="flex items-center gap-2">
-                    <Pencil className="w-4 h-4" /> Edit
-                  </Button>
-                  <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="flex items-center gap-2"
-                        disabled={deleteLoading}
+    <>
+      {/* Main dashboard container: remove centering, let flexbox handle layout */}
+      <div className="flex flex-col min-h-[80vh]">
+        <div className="w-full max-w-6xl mx-auto px-4 flex flex-col">
+          <div className="flex flex-col gap-8 p-4 md:p-6">
+            <div className="text-left">
+              <h1 className="text-3xl font-bold">Dashboard</h1>
+              <p className="text-muted-foreground">Welcome back. Here's your incident overview.</p>
+            </div>
+            {/* Top Section: Grid for Chart and Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[220px]">
+              {/* Donut Chart */}
+              <Card className="glass-card h-full md:col-span-2 lg:col-span-1 flex flex-col justify-center">
+                <CardHeader>
+                  <CardTitle className="text-base">Incidents by Severity</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={70}
+                        paddingAngle={5}
+                        labelLine={false}
                       >
-                        <Trash2 className="w-4 h-4" />
-                        {deleteLoading ? <span className="ml-1">Deleting...</span> : <span>Delete</span>}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Delete Incident</DialogTitle>
-                        <DialogDescription>
-                          Are you sure you want to delete this incident? This action cannot be undone.
-                        </DialogDescription>
-                      </DialogHeader>
-                      {deleteError && <div className="text-destructive mb-2">{deleteError}</div>}
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleteLoading}>
-                          Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={deleteLoading}>
-                          {deleteLoading ? "Deleting..." : "Confirm"}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                        {donutData.map((entry) => (
+                          <Cell key={`cell-${entry.name}`} fill={entry.color} stroke={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        cursor={{ fill: 'hsl(var(--secondary))' }}
+                        contentStyle={{
+                          background: 'hsl(var(--background) / 0.8)',
+                          backdropFilter: 'blur(4px)',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: 'var(--radius)',
+                        }}
+                      />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem' }}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+              {/* Metric Cards (Original) */}
+              <MetricCard title="Total Incidents" value={totalIncidents} description="All reported incidents" icon={ShieldQuestion}/>
+              <MetricCard title="Active Incidents" value={activeIncidents} description="Pending or in-progress" icon={AlertCircle} />
+              <MetricCard title="Resolved Incidents" value={resolvedIncidents} description="Successfully closed cases" icon={CheckCircle} />
+            </div>
+
+            {/* New Section for Resolution Metrics - Added as a new row for better clarity */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 min-h-[120px]">
+                <MetricCard 
+                    title="Overall Resolution Rate" 
+                    value={`${overallResolutionPercentage}%`} 
+                    description="Percentage of all incidents resolved" 
+                    icon={CheckCircle} 
+                />
+                <MetricCard 
+                    title="Avg. Resolution Time" 
+                    value={formattedAverageResolutionTime} 
+                    description="Average time to resolve an incident" 
+                    icon={Clock} 
+                />
+            </div>
+
+            {/* Bottom Section: Recent Incidents Table */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Recent Incidents</h2>
+                <Button onClick={() => router.push('/dashboard/my-reports')}> {/* Changed to my-reports for more generic use */}
+                  View All Reports
+                </Button>
+              </div>
+              {loading ? (
+                <IncidentTableSkeleton />
+              ) : error ? (
+                <div className="text-destructive glass-card p-4 rounded-lg">{error}</div>
+              ) : incidents.length === 0 ? (
+                <div className="text-muted-foreground text-center glass-card p-8 rounded-lg">No incidents found.</div>
+              ) : (
+                <div className="overflow-x-auto w-full">
+                  {/* Pass handleViewIncident to IncidentTable */}
+                  <IncidentTable incidents={incidents} onViewIncident={handleViewIncident} onActionComplete={handleIncidentActionComplete} />
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </div>
+        </div>
       </div>
+      <style jsx global>{`
+        .recharts-tooltip-item,
+        .recharts-tooltip-label {
+          color: #fff !important;
+        }
+        .recharts-default-tooltip {
+          background: hsl(var(--background), 0.95) !important;
+          border: 1px solid hsl(var(--border)) !important;
+          border-radius: var(--radius) !important;
+          backdrop-filter: blur(4px) !important;
+        }
+      `}</style>
 
-      {/* AI Analysis Section */}
-      <div className="mb-8">
-        {!incident?.summary && !incident?.aiAnalysis && (
-          <Button onClick={handleReanalyze} disabled={reanalyzing} className="mb-4">
-            {reanalyzing ? 'Generating AI Analysis...' : 'Generate AI Analysis'}
-          </Button>
-        )}
-        <AIAnalysis analysis={
-          incident?.aiAnalysis ||
-          (incident?.summary && {
-            summary: incident.summary,
-            tags: incident.tags,
-            severity: incident.severity,
-            escalate: incident.escalate,
-            escalationReason: incident.escalationReason,
-            type: incident.type,
-            confidence: incident.confidence
-          })
-        } isLoading={reanalyzing} />
-      </div>
-    </div>
+      {/* Incident Details Modal */}
+      {selectedIncidentId && (
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="sm:max-w-[800px] lg:max-w-[1000px] glass-card max-h-[90vh] overflow-y-auto"> {/* Increased max-width and added overflow */}
+            <DialogHeader>
+              <DialogTitle>Incident Details</DialogTitle>
+              <DialogDescription>
+                Detailed information about the incident.
+              </DialogDescription>
+            </DialogHeader>
+            <IncidentDetailsView 
+              incidentId={selectedIncidentId} 
+              onClose={() => {
+                setIsModalOpen(false);
+                setSelectedIncidentId(null);
+                handleIncidentActionComplete(); // Trigger refresh on close
+              }} 
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }

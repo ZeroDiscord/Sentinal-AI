@@ -22,8 +22,9 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useState, useEffect, useRef } from "react";
 
-export default function IncidentTable({ incidents, onActionComplete }) {
-  const router = useRouter();
+// Add onViewIncident to props
+export default function IncidentTable({ incidents, onActionComplete, onViewIncident }) {
+  const router = useRouter(); // Keep for 'View All Reports' button
   const { user, role } = useAuth();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
@@ -46,7 +47,7 @@ export default function IncidentTable({ incidents, onActionComplete }) {
   useEffect(() => {
     // Reset to first page if incidents change and current page is out of range
     if (currentPage > totalPages) setCurrentPage(1);
-  }, [sortedIncidents.length, totalPages]);
+  }, [sortedIncidents.length, totalPages, currentPage]); // Added currentPage to dependency array for clarity
 
   // Fetch assignable users (members, secretaries)
   useEffect(() => {
@@ -63,24 +64,33 @@ export default function IncidentTable({ incidents, onActionComplete }) {
     const idsToFetch = paginatedIncidents
       .map(i => i.reportedBy)
       .filter(id => id && id !== 'Anonymous' && !userCache.current[id]);
-    if (idsToFetch.length === 0) return;
-    const fetchUsers = async () => {
-      const usersSnapshot = await Promise.all(idsToFetch.map(id => getDocs(collection(db, "users"))));
-      const newUserNames = { ...userCache.current };
-      usersSnapshot.forEach((snap, idx) => {
-        const id = idsToFetch[idx];
-        const userDoc = snap.docs.find(doc => doc.id === id);
-        if (userDoc) {
-          newUserNames[id] = userDoc.data().name || userDoc.data().displayName || id;
-        } else {
-          newUserNames[id] = id;
+    
+    if (idsToFetch.length === 0) {
+        // If no new IDs to fetch, and there are incidents, make sure userNames state is updated from cache
+        if (paginatedIncidents.length > 0 && Object.keys(userNames).length === 0 && Object.keys(userCache.current).length > 0) {
+            setUserNames({ ...userCache.current });
         }
-      });
-      userCache.current = newUserNames;
-      setUserNames({ ...newUserNames });
+        return;
+    }
+
+    const fetchUsers = async () => {
+        try {
+            const usersSnapshot = await getDocs(collection(db, "users")); // Fetches all users
+            const newUserNames = { ...userCache.current };
+            usersSnapshot.docs.forEach(userDoc => {
+                if (idsToFetch.includes(userDoc.id)) {
+                    newUserNames[userDoc.id] = userDoc.data().name || userDoc.data().displayName || userDoc.id;
+                }
+            });
+
+            userCache.current = newUserNames;
+            setUserNames({ ...newUserNames });
+        } catch (error) {
+            console.error("Error fetching user names:", error);
+        }
     };
     fetchUsers();
-  }, [paginatedIncidents]);
+  }, [paginatedIncidents, users]); // Added `users` to dependency array to react to user list changes
 
   async function handleAssign() {
     if (!selectedIncident) return;
@@ -96,8 +106,15 @@ export default function IncidentTable({ incidents, onActionComplete }) {
         setAssignDialogOpen(false);
         setAssignTo("");
         setSelectedIncident(null);
-        if (onActionComplete) onActionComplete(); else router.refresh();
+        if (onActionComplete) onActionComplete(); // Notify parent of action completion
+        // router.refresh(); // Removed as parent (Dashboard) will handle data refresh onActionComplete
+      } else {
+        const errorData = await res.json();
+        console.error("Failed to assign incident:", errorData.message);
+        // Optionally show an error to the user
       }
+    } catch (error) {
+        console.error("Error assigning incident:", error);
     } finally {
       setAssignLoading(false);
     }
@@ -116,8 +133,15 @@ export default function IncidentTable({ incidents, onActionComplete }) {
       if (res.ok) {
         setResolveDialogOpen(false);
         setSelectedIncident(null);
-        if (onActionComplete) onActionComplete(); else router.refresh();
+        if (onActionComplete) onActionComplete(); // Notify parent of action completion
+        // router.refresh(); // Removed as parent (Dashboard) will handle data refresh onActionComplete
+      } else {
+        const errorData = await res.json();
+        console.error("Failed to resolve incident:", errorData.message);
+        // Optionally show an error to the user
       }
+    } catch (error) {
+        console.error("Error resolving incident:", error);
     } finally {
       setResolveLoading(false);
     }
@@ -151,8 +175,12 @@ export default function IncidentTable({ incidents, onActionComplete }) {
     }
   };
 
-  const handleViewDetails = (id) => {
-    router.push(`/dashboard/incidents/${id.replace('INC-', '')}`);
+  // Modified to call the onViewIncident prop, passing the full incident object
+  const handleViewDetails = (incidentData) => {
+    if (onViewIncident) {
+      onViewIncident(incidentData); // Pass the entire incident object
+    }
+    // No router.push here anymore for individual incident details
   };
 
   return (
@@ -174,7 +202,8 @@ export default function IncidentTable({ incidents, onActionComplete }) {
         </TableHeader>
         <TableBody>
           {paginatedIncidents.map((incident) => (
-            <TableRow key={incident.id} className="hover:bg-white/5 border-b-white/10 last:border-b-0 cursor-pointer" onClick={() => handleViewDetails(incident.id)}>
+            // Changed onClick to pass the full incident object
+            <TableRow key={incident.id} className="hover:bg-white/5 border-b-white/10 last:border-b-0 cursor-pointer" onClick={() => handleViewDetails(incident)}>
               <TableCell className="font-medium">{incident.id}</TableCell>
               <TableCell className="hidden md:table-cell">{incident.type}</TableCell>
               <TableCell>
@@ -186,9 +215,9 @@ export default function IncidentTable({ incidents, onActionComplete }) {
                         if (sev === "high") return "High";
                         if (sev === "medium" || sev === "moderate") return "Medium";
                         if (sev === "low") return "Low";
-                        return "Low";
+                        return "Low"; // Default if no match
                       })()
-                    : "Low";
+                    : "Low"; // Default if severity is null/undefined
                   return (
                     <Badge className={cn("text-xs font-semibold", getSeverityBadgeClass(normalizedSeverity))}>
                       {normalizedSeverity}
@@ -212,27 +241,30 @@ export default function IncidentTable({ incidents, onActionComplete }) {
               <TableCell>{incident.school || '-'}</TableCell>
               <TableCell>{incident.assignedTo || <span className="text-muted-foreground">Unassigned</span>}</TableCell>
               <TableCell>
-                 <Badge variant="outline" className={cn("text-xs", getStatusBadgeClass(incident.status))}>
-                  {incident.status}
-                </Badge>
+                   <Badge variant="outline" className={cn("text-xs", getStatusBadgeClass(incident.status))}>
+                     {incident.status}
+                   </Badge>
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                     <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
+                       {/* Prevent row click from firing when dropdown trigger is clicked */}
+                       <Button variant="ghost" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                           <span className="sr-only">Open menu</span>
+                           <MoreHorizontal className="h-4 w-4" />
+                       </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="glass-card">
-                     <DropdownMenuItem onClick={() => handleViewDetails(incident.id)}>View Details</DropdownMenuItem>
-                     <DropdownMenuItem>Mark as In Progress</DropdownMenuItem>
-                     {role === 'cpo' || role === 'school_proctor' ? (
-                       <>
-                         <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedIncident(incident); setAssignDialogOpen(true); }}>Assign</DropdownMenuItem>
-                         <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedIncident(incident); setResolveDialogOpen(true); }}>Resolve</DropdownMenuItem>
-                       </>
-                     ) : null}
+                       {/* Changed to call handleViewDetails with the full incident object */}
+                       <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewDetails(incident); }}>View Details</DropdownMenuItem>
+                       {/* Ensure these actions also stop propagation to prevent row click */}
+                       <DropdownMenuItem onClick={(e) => e.stopPropagation()}>Mark as In Progress</DropdownMenuItem>
+                       {role === 'cpo' || role === 'school_proctor' ? (
+                           <>
+                               <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedIncident(incident); setAssignDialogOpen(true); }}>Assign</DropdownMenuItem>
+                               <DropdownMenuItem onClick={e => { e.stopPropagation(); setSelectedIncident(incident); setResolveDialogOpen(true); }}>Resolve</DropdownMenuItem>
+                           </>
+                       ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -242,14 +274,14 @@ export default function IncidentTable({ incidents, onActionComplete }) {
       </Table>
       {/* Assign Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent>
+        <DialogContent className="glass-card"> {/* Added glass-card class */}
           <DialogHeader><DialogTitle>Assign Incident</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <Select value={assignTo} onValueChange={setAssignTo}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select user to assign" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="glass-card"> {/* Added glass-card class */}
                 {assignableUsers.map(u => (
                   <SelectItem key={u.id} value={u.name || u.email || u.id}>{u.name || u.email} ({u.role})</SelectItem>
                 ))}
@@ -265,7 +297,7 @@ export default function IncidentTable({ incidents, onActionComplete }) {
       </Dialog>
       {/* Resolve Dialog */}
       <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="glass-card"> {/* Added glass-card class */}
           <DialogHeader><DialogTitle>Resolve Incident</DialogTitle></DialogHeader>
           <p>Are you sure you want to mark this incident as resolved?</p>
           <DialogFooter>
@@ -277,7 +309,7 @@ export default function IncidentTable({ incidents, onActionComplete }) {
       </Dialog>
       {/* Pagination Controls */}
       {totalPages > 1 && (
-        <div className="flex justify-end items-center gap-1 mt-6">
+        <div className="flex justify-end items-center gap-1 mt-6 p-4"> {/* Added padding for clarity */}
           <Button
             variant="ghost"
             className="h-9 px-3 rounded-full flex items-center justify-center"

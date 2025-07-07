@@ -1,5 +1,3 @@
-// File: src/app/api/incidents/[id]/route.js
-
 import { NextResponse } from 'next/server';
 import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp, addDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -282,7 +280,7 @@ export async function DELETE(request, { params }) {
   }
 }
 
-// Add PATCH for assign/resolve
+// Add PATCH for assign/resolve and timeline event recording
 export async function PATCH(request, { params }) {
   try {
     const { id } = await params;
@@ -301,18 +299,43 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
     }
     const body = await request.json();
+    const currentIncidentData = incidentSnap.data();
     const update = {};
-    if (body.assignedTo !== undefined) update.assignedTo = body.assignedTo;
-    if (body.status === 'resolved') update.status = 'resolved';
-    if (Array.isArray(body.readBy) && user.uid) {
-      const current = incidentSnap.data().readBy || [];
-      if (!current.includes(user.uid)) {
-        update.readBy = [...current, user.uid];
+
+    // Handle assignedTo and assignedAt
+    if (body.assignedTo !== undefined) {
+      update.assignedTo = body.assignedTo;
+      if (!currentIncidentData.assignedTo) { // Only set assignedAt if it's the first assignment
+        update.assignedAt = serverTimestamp();
       }
     }
+    // Handle status changes (e.g., resolved) and resolvedAt
+    if (body.status !== undefined) {
+        update.status = body.status;
+        if (body.status === 'resolved' && !currentIncidentData.resolvedAt) {
+            update.resolvedAt = serverTimestamp();
+        }
+        // Optionally add 'in_progress_at' for 'In Progress' status
+        if (body.status === 'in_progress' && !currentIncidentData.inProgressAt) {
+            update.inProgressAt = serverTimestamp();
+        }
+    }
+
+    // Handle readBy and firstReadAt
+    if (Array.isArray(body.readBy) && user.uid) {
+      const currentReadBy = currentIncidentData.readBy || [];
+      if (!currentReadBy.includes(user.uid)) {
+        update.readBy = [...currentReadBy, user.uid];
+        if (!currentIncidentData.firstReadAt) { // Only set firstReadAt if it's the very first read
+          update.firstReadAt = serverTimestamp();
+        }
+      }
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
+
     await updateDoc(incidentRef, update);
     const updatedSnap = await getDoc(incidentRef);
     return NextResponse.json({ incident: { id, ...updatedSnap.data() } });
