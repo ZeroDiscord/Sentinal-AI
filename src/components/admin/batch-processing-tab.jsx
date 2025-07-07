@@ -58,7 +58,7 @@ export default function BatchProcessingTab() {
   }
 
   async function getAuthToken() {
-    // This is a placeholder - you'll need to implement proper auth token retrieval
+    // This is a placeholder 
     // For now, return null which will cause the API to handle anonymous requests
     return null;
   }

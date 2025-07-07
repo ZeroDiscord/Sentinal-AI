@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import IncidentTable from "@/components/incident-table";
-import IncidentDetailsView from "@/components/IncidentDetailsView";
+import IncidentDetailsView from "@/components/incident-details-view";
 import { useAuth } from "@/hooks/useAuth";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -9,6 +9,7 @@ import IncidentTableSkeleton from "@/components/incident-table-skeleton";
 import FullPageLoader from "@/components/ui/full-page-loader";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 export default function ReportsPage() {
   const [incidents, setIncidents] = useState([]);
@@ -19,6 +20,10 @@ export default function ReportsPage() {
   // State for the full incident details modal on this page
   const [isFullModalOpen, setIsFullModalOpen] = useState(false);
   const [selectedIncidentIdForFull, setSelectedIncidentIdForFull] = useState(null);
+
+  // Filter state
+  const [severityFilter, setSeverityFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
     // This page is intended for CPO/Admin, but we'll fetch data if user is logged in.
@@ -37,6 +42,21 @@ export default function ReportsPage() {
     });
     return () => unsub();
   }, [authLoading]); // Depend on authLoading to ensure user state is ready
+
+  // Compute filtered incidents
+  const filteredIncidents = incidents.map(inc => {
+    // Derive status for filtering and display
+    let derivedStatus = inc.status;
+    if (inc.status !== 'resolved' && inc.assignedTo) {
+      derivedStatus = 'in_progress';
+    }
+    return { ...inc, derivedStatus };
+  }).filter(inc => {
+    const statusToCheck = inc.derivedStatus ? inc.derivedStatus.toLowerCase() : '';
+    const sevMatch = severityFilter && severityFilter !== "all" ? (inc.severity && inc.severity.toLowerCase() === severityFilter) : true;
+    const statusMatch = statusFilter && statusFilter !== "all" ? (statusToCheck === statusFilter) : true;
+    return sevMatch && statusMatch;
+  });
 
   // Handler for opening the full incident details modal
   const handleViewFullIncidentDetails = (incidentData) => {
@@ -66,17 +86,51 @@ export default function ReportsPage() {
             <h1 className="text-3xl font-bold">All Incident Reports</h1>
             <p className="text-muted-foreground">Comprehensive list of all incidents.</p>
           </div>
+          {/* Filters for CPO and similar roles */}
+          {(role === 'cpo' || role === 'school_proctor' || role === 'secretary' || role === 'warden' || role === 'member') && (
+            <div className="flex flex-wrap gap-4 items-center mb-4">
+              <div>
+                <label className="block text-xs font-medium mb-1 text-muted-foreground">Severity</label>
+                <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="All Severities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Severities</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1 text-muted-foreground">Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="analyzed">Analyzed</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {loading ? (
             <IncidentTableSkeleton />
           ) : error ? (
             <div className="text-destructive glass-card p-4 rounded-lg">{error}</div>
-          ) : incidents.length === 0 ? (
+          ) : filteredIncidents.length === 0 ? (
             <div className="text-muted-foreground text-center glass-card p-8 rounded-lg">No incidents found.</div>
           ) : (
             <div className="overflow-x-auto w-full">
               {/* This IncidentTable will open the FULL details modal */}
               <IncidentTable 
-                incidents={incidents} 
+                incidents={filteredIncidents} 
                 onViewIncident={handleViewFullIncidentDetails} 
                 onActionComplete={handleIncidentActionComplete} 
               />

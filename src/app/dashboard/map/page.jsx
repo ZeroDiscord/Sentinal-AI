@@ -229,6 +229,10 @@ export default function MapPage() {
                 })()
               : "Low";
             const severityStyles = getSeverityStyles(normalizedSeverity);
+
+            // Extract only the background and border classes from the badge style
+            const badgeBgBorderClasses = severityStyles.badge.split(' ').filter(cls => cls.startsWith('bg-') || cls.startsWith('border-')).join(' ');
+
             // Only render marker if not selected
             if (selectedIncident && selectedIncident.id === incident.id) return null;
             return (
@@ -240,10 +244,10 @@ export default function MapPage() {
                   setModalCoords(getMarkerScreenPosition(coords));
                 }}
               >
-                <span className={cn("custom-pulse border border-white/30 z-10", severityStyles.dot)} />
+                <span className={cn("custom-pulse border border-white/30 z-10", badgeBgBorderClasses)} />
                 <span className={cn(
-                  "relative inline-flex rounded-full h-4 w-4 border-2 border-white z-10",
-                  severityStyles.dot
+                  "relative inline-flex rounded-full h-6 w-6 border-2 border-white z-10", // Increased size
+                  badgeBgBorderClasses // Use badge color and border
                 )} />
               </div>
             );

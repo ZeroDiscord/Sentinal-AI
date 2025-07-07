@@ -88,6 +88,19 @@ export async function PUT(request, { params }) {
     "type": number (0-1)
   }
 }
+
+# Severity Classification Guidelines
+- Only classify as "critical" if the incident is an extreme emergency (e.g., life-threatening, major disaster, or requires immediate campus-wide intervention). Less than 1% of incidents should be critical.
+- Use "high" for serious but non-catastrophic incidents (e.g., major fights, significant property damage, urgent safety threats). Only a small percentage should be high.
+- Use "medium" for incidents that require attention but are not urgent (e.g., minor altercations, repeated rule violations, moderate injuries).
+- Use "low" for routine, minor, or administrative issues (e.g., noise complaints, lost items, minor disputes). Most incidents should be low or medium.
+
+# Examples
+- Critical: "A fire has broken out in the main hostel building, multiple students are trapped."
+- High: "A group fight has resulted in serious injuries, medical help needed."
+- Medium: "A student was caught cheating during an exam."
+- Low: "A student lost their ID card."
+
 Incident Description: {description}
 Type (if provided): {type}
 Location: {location}
@@ -286,12 +299,24 @@ export async function PATCH(request, { params }) {
     const { id } = await params;
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
+
       return NextResponse.json({ error: 'Missing auth token' }, { status: 401 });
     }
     const token = authHeader.replace('Bearer ', '');
     const user = await verifyIdToken(token);
     if (!user) {
       return NextResponse.json({ error: 'Invalid auth token' }, { status: 401 });
+    }
+    // Fetch Firestore user document for role
+    let firestoreUser = null;
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      if (userDocSnap.exists()) {
+        firestoreUser = userDocSnap.data();
+      }
+    } catch (e) {
+      console.warn('[PATCH] Failed to fetch Firestore user doc:', e);
     }
     const incidentRef = doc(db, 'incidents', id);
     const incidentSnap = await getDoc(incidentRef);
@@ -326,7 +351,8 @@ export async function PATCH(request, { params }) {
       const currentReadBy = currentIncidentData.readBy || [];
       if (!currentReadBy.includes(user.uid)) {
         update.readBy = [...currentReadBy, user.uid];
-        if (!currentIncidentData.firstReadAt) { // Only set firstReadAt if it's the very first read
+        // Only set firstReadAt if it's the very first read AND the user is a CPO (from Firestore role)
+        if (!currentIncidentData.firstReadAt && firestoreUser?.role === 'cpo') { 
           update.firstReadAt = serverTimestamp();
         }
       }
@@ -335,12 +361,11 @@ export async function PATCH(request, { params }) {
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
-
     await updateDoc(incidentRef, update);
     const updatedSnap = await getDoc(incidentRef);
     return NextResponse.json({ incident: { id, ...updatedSnap.data() } });
   } catch (err) {
-    console.error('Error in PATCH /api/incidents/[id]:', err);
+    console.error('[PATCH] Error in PATCH /api/incidents/[id]:', err);
     return NextResponse.json({ error: 'Failed to update incident' }, { status: 500 });
   }
 }

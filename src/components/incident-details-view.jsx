@@ -2,10 +2,10 @@
 import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, User, MapPin, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Calendar, User, MapPin, Pencil, Trash2, RefreshCw, Clock, CheckCircle, UserPlus, Eye, ListChecks, ChevronDown, ChevronRight } from "lucide-react";
 import AIAnalysis from "@/components/ai-analysis";
 import IncidentForm from "@/components/incident-form";
-import IncidentTimeline from "@/components/IncidentTimeline";
+import IncidentTimeline from "@/components/incident-timeline";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 
@@ -62,6 +62,7 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
   const lastPos = useRef({ x: 0, y: 0 });
   const [reporterName, setReporterName] = useState(null);
   const reporterCache = useRef({});
+  const [timelineOpen, setTimelineOpen] = useState(false);
 
   const fetchIncident = async () => {
     setLoading(true);
@@ -82,11 +83,51 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
   };
 
   useEffect(() => {
-    if (incidentId) {
-      fetchIncident();
-    }
-    // eslint-disable-next-line
+    if (!incidentId) return;
+    setLoading(true);
+    setError(null);
+
+    const unsub = onSnapshot(
+      doc(db, "incidents", incidentId),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setIncident({ id: docSnap.id, ...docSnap.data() });
+          setLoading(false);
+        } else {
+          setError("Incident not found");
+          setLoading(false);
+        }
+      },
+      (err) => {
+        setError("Failed to fetch incident");
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
   }, [incidentId]);
+
+  // Mark as read by CPO when incident is loaded
+  useEffect(() => {
+    if (incident && user && role?.toLowerCase() === 'cpo') {
+      (async () => {
+        try {
+          const token = await user.getIdToken();
+          await fetch(`/api/incidents/${incident.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ readBy: [user.uid] }),
+          });
+        } catch (err) {
+          // Optionally handle error
+          console.error('[CPO READ PATCH] Failed:', err);
+        }
+      })();
+    }
+  }, [incident, user, role]);
 
   useEffect(() => {
     if (assignDialogOpen) {
@@ -121,6 +162,12 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
       }
     }
     fetchReporterName();
+  }, [incident]);
+
+  useEffect(() => {
+    if (incident) {
+      console.log('Incident data:', incident);
+    }
   }, [incident]);
 
   const handleDelete = async () => {
@@ -248,6 +295,71 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
     setOffset({ x: 0, y: 0 });
   };
 
+  // Get timeline events for summary
+  const getTimelineEvents = () => {
+    const events = [];
+    const safeToDate = (timestamp) => {
+      if (!timestamp) return null;
+      let dateObj;
+      if (timestamp.toDate) {
+        dateObj = timestamp.toDate();
+      } else {
+        dateObj = new Date(timestamp);
+      }
+      return isNaN(dateObj.getTime()) ? null : dateObj;
+    };
+    const createdAtDate = safeToDate(incident.createdAt);
+    if (createdAtDate && incident.reportedBy) {
+      events.push({
+        type: 'Reported',
+        icon: 'Clock',
+        timestamp: createdAtDate,
+        description: `Incident reported by ${incident.reportedBy === 'Anonymous' ? 'Anonymous' : 'user'}.`,
+      });
+    }
+    const firstReadAtDate = safeToDate(incident.firstReadAt);
+    if (firstReadAtDate) {
+      events.push({
+        type: 'First Read',
+        icon: 'Eye',
+        timestamp: firstReadAtDate,
+        description: `Incident report was first viewed.`,
+      });
+    }
+    const assignedAtDate = safeToDate(incident.assignedAt);
+    if (assignedAtDate && incident.assignedTo) {
+      events.push({
+        type: 'Assigned',
+        icon: 'UserPlus',
+        timestamp: assignedAtDate,
+        description: `Assigned to ${incident.assignedTo}.`,
+      });
+    }
+    const inProgressAtDate = safeToDate(incident.inProgressAt);
+    if (inProgressAtDate) {
+      events.push({
+        type: 'In Progress',
+        icon: 'ListChecks',
+        timestamp: inProgressAtDate,
+        description: `Incident marked as in progress.`,
+      });
+    }
+    const resolvedAtDate = safeToDate(incident.resolvedAt);
+    if (resolvedAtDate) {
+      events.push({
+        type: 'Resolved',
+        icon: 'CheckCircle',
+        timestamp: resolvedAtDate,
+        description: `Incident marked as resolved.`,
+      });
+    }
+    events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    return events;
+  };
+  // Only compute timeline events if incident is present
+  const timelineEvents = incident ? getTimelineEvents() : [];
+  const lastEvent = timelineEvents.length > 0 ? timelineEvents[timelineEvents.length - 1] : null;
+
   if (loading) return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <div className="glass-card p-8">
@@ -273,13 +385,42 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 space-y-10">
+      {/* Expandable Timeline */}
+      <div className="mb-6">
+        <button
+          className="flex items-center gap-2 text-lg font-bold text-foreground focus:outline-none hover:text-primary transition-colors"
+          onClick={() => setTimelineOpen((open) => !open)}
+          aria-expanded={timelineOpen}
+        >
+          {timelineOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+          Incident Resolution Timeline
+        </button>
+        <div className={`transition-all duration-300 overflow-hidden ${timelineOpen ? 'max-h-[1000px] opacity-100' : 'max-h-32 opacity-80'}`}>
+          {timelineOpen ? (
+            incident && <IncidentTimeline incident={incident} />
+          ) : lastEvent ? (
+            <div className="mt-4 flex items-center gap-3 bg-background/80 border border-border rounded-lg shadow px-4 py-3">
+              <span className="text-primary font-semibold flex items-center gap-2">
+                {lastEvent.icon === 'Clock' && <Clock className="w-4 h-4" />}
+                {lastEvent.icon === 'Eye' && <Eye className="w-4 h-4" />}
+                {lastEvent.icon === 'UserPlus' && <UserPlus className="w-4 h-4" />}
+                {lastEvent.icon === 'ListChecks' && <ListChecks className="w-4 h-4" />}
+                {lastEvent.icon === 'CheckCircle' && <CheckCircle className="w-4 h-4" />}
+                {lastEvent.type}
+              </span>
+              <span className="text-xs text-muted-foreground">{lastEvent.timestamp && lastEvent.timestamp.toLocaleString()}</span>
+              <span className="text-sm text-foreground/90 ml-2">{lastEvent.description}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
       <div className="space-y-8">
         {editing ? (
           <IncidentForm
             incident={incident}
             onSuccess={() => {
               setEditing(false);
-              fetchIncident();
+              // fetchIncident(); // No longer needed, real-time
             }}
           />
         ) : (
@@ -288,7 +429,7 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-2xl">{incident.title}</CardTitle>
-                  <CardDescription>Incident ID: {incident.id}</CardDescription>
+                  <CardDescription>Incident ID: {incident.id }</CardDescription>
                   <div className="flex items-center gap-4 mt-2">
                     <span className="font-mono font-bold text-lg text-primary">Priority: {typeof incident.priorityScore === 'number' ? incident.priorityScore.toFixed(1) : '-'}</span>
                     <Badge variant="outline" className="text-xs">{incident.status || 'open'}</Badge>
@@ -539,8 +680,6 @@ export default function IncidentDetailsView({ incidentId, onClose }) {
           })
         } isLoading={reanalyzing} />
       </div>
-
-      <IncidentTimeline incident={incident} />
     </div>
   );
 }

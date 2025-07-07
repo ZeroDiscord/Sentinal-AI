@@ -1,0 +1,60 @@
+/* Global dark scrollbar styles */
+html, body, .glass-card, .modal, .DialogContent, .incident-snapshot-modal {
+  scrollbar-color: #23272f #181a20;
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  background: #181a20;
+}
+::-webkit-scrollbar-thumb {
+  background: #23272f;
+  border-radius: 8px;
+  border: 2px solid #181a20;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b4252;
+}
+::-webkit-scrollbar-track {
+  background: #181a20;
+  border-radius: 8px;
+}
+
+/* Severity badge glow and blink animations */
+.severity-badge {
+  box-shadow: 0 0 8px 2px rgba(0,0,0,0.12) !important;
+  animation: none !important;
+  transition: box-shadow 0.2s, filter 0.2s;
+}
+.severity-critical {
+  animation: blink-glow-critical 0.8s infinite alternate !important;
+  box-shadow: 0 0 32px 12px #ef4444cc, 0 0 16px 8px #ef4444bb !important;
+}
+.severity-high {
+  animation: blink-glow-high 1.2s infinite alternate !important;
+  box-shadow: 0 0 24px 8px #fb7185cc, 0 0 12px 4px #fb718599 !important;
+}
+.severity-medium {
+  animation: blink-glow-medium 1.6s infinite alternate !important;
+  box-shadow: 0 0 16px 6px #f59e0bcc, 0 0 8px 2px #f59e0b88 !important;
+}
+.severity-low {
+  animation: blink-glow-low 2s infinite alternate !important;
+  box-shadow: 0 0 8px 3px #3b82f6bb !important;
+}
+@keyframes blink-glow-critical {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(2) drop-shadow(0 0 24px #ef4444cc); }
+}
+@keyframes blink-glow-high {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(1.5) drop-shadow(0 0 16px #fb7185cc); }
+}
+@keyframes blink-glow-medium {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(1.2) drop-shadow(0 0 10px #f59e0bcc); }
+}
+@keyframes blink-glow-low {
+  0% { filter: brightness(1); }
+  100% { filter: brightness(1.08) drop-shadow(0 0 5px #3b82f6bb); }
+} 

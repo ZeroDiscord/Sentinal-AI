@@ -15,6 +15,7 @@ import {
 import Image from "next/image";
 import { Plus, Minus, RotateCcw } from "lucide-react";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { cn } from "@/lib/utils"; // Import cn utility
 
 const CAMPUS_MAPS = {
   bidholi: {
@@ -48,6 +49,22 @@ const SCHOOL_OPTIONS = [
   'School of Design',
   'School of Health Sciences',
 ];
+
+// Helper function to get severity styles (copied from map/page.jsx for consistency)
+const getSeverityStyles = (severity) => {
+  switch (severity) {
+    case "Critical":
+      return { dot: "bg-red-500", badge: "bg-red-600/80 border-red-500 text-white hover:bg-red-600/90" };
+    case "High":
+      return { dot: "bg-orange-500", badge: "bg-orange-500/80 border-orange-400 text-white hover:bg-orange-500/90" };
+    case "Medium":
+      return { dot: "bg-amber-500", badge: "bg-amber-500/80 border-amber-400 text-white hover:bg-amber-500/90" };
+    case "Low":
+      return { dot: "bg-blue-500", badge: "bg-blue-500/80 border-blue-400 text-white hover:bg-blue-500/90" };
+    default:
+      return { dot: "bg-gray-500", badge: "bg-gray-500" };
+  }
+};
 
 export default function IncidentForm({ incident, onSuccess }) {
   const [form, setForm] = useState(initialState);
@@ -253,17 +270,45 @@ export default function IncidentForm({ incident, onSuccess }) {
                 style={{ userSelect: "none", pointerEvents: "none" }}
               />
               {form.marker && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: `${form.marker.y}%`,
-                    left: `${form.marker.x}%`,
-                    transform: "translate(-50%, -50%)",
-                    zIndex: 10,
-                    pointerEvents: "none",
-                  }}
-                  className="inline-block w-6 h-6 bg-red-600 rounded-full border-2 border-white shadow-lg"
-                />
+                (() => {
+                  const normalizedSeverity = form.severity
+                    ? (() => {
+                        const sev = form.severity.toLowerCase();
+                        if (sev === "critical") return "Critical";
+                        if (sev === "high") return "High";
+                        if (sev === "medium" || sev === "moderate") return "Medium";
+                        if (sev === "low") return "Low";
+                        return "Low";
+                      })()
+                    : "Low";
+                  const severityStyles = getSeverityStyles(normalizedSeverity);
+                  // Extract only the background and border classes from the badge style
+                  const badgeBgBorderClasses = severityStyles.badge.split(' ').filter(cls => cls.startsWith('bg-') || cls.startsWith('border-')).join(' ');
+
+                  return (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: `${form.marker.y}%`,
+                        left: `${form.marker.x}%`,
+                        transform: "translate(-50%, -50%)",
+                        zIndex: 10,
+                        pointerEvents: "none",
+                        width: '48px', // Match the live map marker wrapper size
+                        height: '48px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <span className={cn("custom-pulse border border-white/30 z-10", badgeBgBorderClasses)} />
+                      <span className={cn(
+                        "relative inline-flex rounded-full h-6 w-6 border-2 border-white z-10", // Increased size
+                        badgeBgBorderClasses // Use badge color and border
+                      )} />
+                    </div>
+                  );
+                })()
               )}
             </div>
           </div>
@@ -309,28 +354,21 @@ export default function IncidentForm({ incident, onSuccess }) {
           placeholder="Location"
           required
         />
-        <FormField
-          control={form.control}
-          name="school"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>School</FormLabel>
-              <FormControl>
-                <Select value={field.value} onValueChange={field.onChange} disabled={user?.role === 'student' || user?.isAnonymous}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select School" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SCHOOL_OPTIONS.map(opt => (
-                      <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* School selection */}
+        <Select
+          value={form.school}
+          onValueChange={school => setForm(f => ({ ...f, school }))}
+          disabled={user?.role === 'student' || user?.isAnonymous}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select School" />
+          </SelectTrigger>
+          <SelectContent>
+            {SCHOOL_OPTIONS.map(opt => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <Button type="submit" disabled={loading || !user}>
         {loading && (

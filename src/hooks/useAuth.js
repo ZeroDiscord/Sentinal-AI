@@ -24,7 +24,6 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('[Auth] onAuthStateChanged user:', user);
       if (user) {
         let firestoreRole = 'student';
         let schoolVal = null;
@@ -33,7 +32,7 @@ export function AuthProvider({ children }) {
           const res = await fetch(`/api/users/${user.uid}`);
           if (res.ok) {
             const data = await res.json();
-            firestoreRole = data.role || 'student';
+            firestoreRole = (data.role || 'student').toLowerCase();
             schoolVal = data.school || null;
             hostelVal = data.hostel || null;
           }
@@ -70,11 +69,9 @@ export function AuthProvider({ children }) {
         setRole('student');
         setSchool(null);
         setHostel(null);
-        console.log('[Auth] No user, role set to student');
       }
       setUser(user);
       setLoading(false);
-      console.log('[Auth] loading:', false, 'role:', role, 'user:', user);
     });
     return () => unsubscribe();
   }, []);
@@ -127,7 +124,7 @@ export function AuthProvider({ children }) {
       const res = await fetch(`/api/users/${uid}`);
       if (res.ok) {
         const data = await res.json();
-        setRole(data.role || 'student');
+        setRole((data.role || 'student').toLowerCase());
         setSchool(data.school || null);
         setHostel(data.hostel || null);
       }

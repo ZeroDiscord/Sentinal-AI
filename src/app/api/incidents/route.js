@@ -90,7 +90,6 @@ export async function POST(req) {
 
     // 1. Create the incident with basic fields
     const docRef = await addDoc(collection(db, 'incidents'), incidentData);
-    console.log('[API] Incident created with ID:', docRef.id);
 
     // --- Multi-Language Support ---
     const language = data.language || 'English';
@@ -111,6 +110,19 @@ export async function POST(req) {
     "type": number (0-1)
   }
 }
+
+# Severity Classification Guidelines
+- Only classify as "critical" if the incident is an extreme emergency (e.g., life-threatening, major disaster, or requires immediate campus-wide intervention). Less than 1% of incidents should be critical.
+- Use "high" for serious but non-catastrophic incidents (e.g., major fights, significant property damage, urgent safety threats). Only a small percentage should be high.
+- Use "medium" for incidents that require attention but are not urgent (e.g., minor altercations, repeated rule violations, moderate injuries).
+- Use "low" for routine, minor, or administrative issues (e.g., noise complaints, lost items, minor disputes). Most incidents should be low or medium.
+
+# Examples
+- Critical: "A fire has broken out in the main hostel building, multiple students are trapped."
+- High: "A group fight has resulted in serious injuries, medical help needed."
+- Medium: "A student was caught cheating during an exam."
+- Low: "A student lost their ID card."
+
 Incident Description: {description}
 Type (if provided): {type}
 Location: {location}
@@ -254,7 +266,6 @@ Example:
       priorityScore,
     };
     await updateDoc(doc(db, 'incidents', docRef.id), incidentUpdate);
-    console.log('[API] Incident updated with unified AI results.');
 
     // 3. Return the enriched incident
     const finalIncident = { id: docRef.id, ...incidentData, ...incidentUpdate };

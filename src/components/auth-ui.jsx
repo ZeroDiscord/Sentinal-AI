@@ -56,7 +56,12 @@ export default function AuthUI({ variant = "header" }) {
     router.push('/');
   };
 
-  if (loading) return <div>Loading auth...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] w-full">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary mb-4" />
+      <span className="text-muted-foreground">Loading authentication...</span>
+    </div>
+  );
 
   // HEADER VARIANT: Compact user menu or sign in button
   if (variant === "header") {

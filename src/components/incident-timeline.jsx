@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Clock, CheckCircle, UserPlus, Eye, ListChecks } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card'; // Ensure Card is imported
+import { Card, CardContent } from '@/components/ui/card';
 
 const IncidentTimeline = ({ incident }) => {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+
   if (!incident) {
     return (
       <Card className="glass-card mt-8">
@@ -100,26 +102,39 @@ const IncidentTimeline = ({ incident }) => {
   return (
     <Card className="glass-card mt-8">
       <CardContent className="py-6">
-        <h3 className="text-xl font-bold mb-6 text-foreground">Incident Resolution Timeline</h3>
-        <div className="relative pl-8">
-          {/* Vertical line */}
-          <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border rounded-full" />
-
-          {events.map((event, index) => (
-            <div key={index} className="mb-8 flex items-start relative last:mb-0">
-              {/* Dot icon */}
-              <div className="absolute left-0 top-0.5 flex items-center justify-center w-6 h-6 rounded-full bg-primary z-10 -translate-x-1/2">
-                <event.icon className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <div className="ml-8 flex-1">
-                <p className="font-semibold text-foreground">{event.type}</p>
-                <p className="text-sm text-muted-foreground">
-                  {format(event.timestamp, 'MMM dd, yyyy HH:mm')}
-                </p>
-                <p className="text-sm text-foreground/80 mt-1">{event.description}</p>
-              </div>
-            </div>
-          ))}
+        <div className="w-full flex flex-col items-center">
+          <div className="relative w-full max-w-md flex flex-col items-center">
+            {/* Vertical timeline line */}
+            <div className="absolute left-8 top-0 bottom-0 w-1 bg-border z-0" style={{ minHeight: 60, borderRadius: 8 }} />
+            {events.map((event, idx) => {
+              return (
+                <div key={idx} className="relative z-10 flex items-start w-full mb-8 last:mb-0">
+                  {/* Timeline marker */}
+                  <div className="flex flex-col items-center mr-4">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${hoveredIndex === idx ? 'border-primary bg-primary/10' : 'border-border bg-background'} transition-colors duration-150`}
+                      onMouseEnter={() => setHoveredIndex(idx)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    >
+                      <event.icon className={`w-5 h-5 ${hoveredIndex === idx ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                    {/* Vertical line segment (except for last event) */}
+                    {idx < events.length - 1 && (
+                      <div className="w-1 bg-border flex-1" style={{ minHeight: 32, marginTop: 2, marginBottom: 2, borderRadius: 8 }} />
+                    )}
+                  </div>
+                  {/* Event card */}
+                  <div className="flex-1 bg-background/80 border border-border rounded-lg shadow-md px-4 py-3">
+                    <div className="font-semibold text-primary mb-1 flex items-center gap-2">
+                      <event.icon className="w-4 h-4" />
+                      {event.type}
+                    </div>
+                    <div className="text-xs text-muted-foreground mb-1">{format(event.timestamp, 'MMM dd, yyyy HH:mm')}</div>
+                    <div className="text-sm text-foreground/90">{event.description}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </CardContent>
     </Card>

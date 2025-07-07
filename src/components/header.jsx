@@ -1,5 +1,4 @@
-"use client";
-
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -32,9 +31,9 @@ import AuthUI from "./auth-ui";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { DialogTitle } from "@/components/ui/dialog";
-import { useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 // MaskIcon for avatar fallback
 const MaskIcon = () => (
@@ -46,14 +45,15 @@ const MaskIcon = () => (
 export default function Header() {
   const pathname = usePathname();
   const isLanding = pathname === "/";
-  const { user } = useAuth();
+  const { user, role } = useAuth(); // Destructure role from useAuth
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast(); // Initialize useToast
 
   useEffect(() => {
     if (!user) return;
     const unsub = onSnapshot(collection(db, "incidents"), (snapshot) => {
-      const notifs = [];
+      const newNotifs = [];
       snapshot.forEach(doc => {
         const data = doc.data();
         const readBy = data.readBy || [];
@@ -61,31 +61,49 @@ export default function Header() {
         if (user && !readBy.includes(user.uid)) {
           // New critical incident
           if (data.severity === "critical" && data.status !== "resolved") {
-            notifs.push({
+            const notif = {
               type: "critical",
               id: doc.id,
               code: data.code || doc.id,
               title: `New Incident: #${data.code || doc.id.slice(-3)}`,
               message: `A critical incident of '${data.type || "Unknown"}' has been reported.`,
-            });
+            };
+            newNotifs.push(notif);
+            // Trigger toast notification ONLY if user is CPO
+            if (role === 'cpo') {
+              toast({
+                title: notif.title,
+                description: notif.message,
+                variant: "destructive", // Critical incidents often use destructive variant
+              });
+            }
           }
           // Escalation suggested
           if (data.escalate && data.status !== "resolved") {
-            notifs.push({
+            const notif = {
               type: "escalation",
               id: doc.id,
               code: data.code || doc.id,
               title: `Escalation Suggested for #${data.code || doc.id.slice(-3)}`,
               message: `AI suggests escalating the '${data.type || "Unknown"}' incident.`,
-            });
+            };
+            newNotifs.push(notif);
+            // Trigger toast notification ONLY if user is CPO
+            if (role === 'cpo') {
+              toast({
+                title: notif.title,
+                description: notif.message,
+                variant: "default", // Or a different variant for escalation
+              });
+            }
           }
         }
       });
-      setNotifications(notifs);
+      setNotifications(newNotifs);
       setLoading(false);
     });
     return () => unsub();
-  }, [user]);
+  }, [user, role, toast]); // Add role to dependency array
 
   // Mark notification as read
   async function markAsRead(incidentId) {

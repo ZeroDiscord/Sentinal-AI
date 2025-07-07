@@ -45,6 +45,7 @@ const CAMPUS_MAPS = {
   },
 };
 
+// Unified getSeverityStyles to match map/page.jsx
 const getSeverityStyles = (severity) => {
   switch (severity) {
     case "Critical":
@@ -56,14 +57,14 @@ const getSeverityStyles = (severity) => {
     case "Low":
       return { dot: "bg-blue-500", badge: "bg-blue-500/80 border-blue-400 text-white hover:bg-blue-500/90" };
     default:
-      return { dot: "bg-cyan-500", badge: "bg-cyan-500" };
+      return { dot: "bg-gray-500", badge: "bg-gray-500" }; // Changed default to gray for consistency
   }
 };
 
 export default function ReportIncidentPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, role } = useAuth(); // Destructure role from useAuth
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [campus, setCampus] = useState("bidholi");
   const [marker, setMarker] = useState(null); // { x: %, y: % }
@@ -121,6 +122,9 @@ export default function ReportIncidentPage() {
         ...values,
         campus,
         marker, // { x, y } or null
+        // Assuming severity and type might come from form, for now use default/placeholder if not explicitly in values
+        severity: form.getValues('severity') || 'Low', // Ensure severity is included if form doesn't provide it
+        type: form.getValues('type') || 'Other' // Ensure type is included
       };
       Object.keys(incidentData).forEach(
         (key) => incidentData[key] === undefined && delete incidentData[key]
@@ -129,7 +133,7 @@ export default function ReportIncidentPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${user?.accessToken || ""}`,
+          "Authorization": `Bearer ${user?.accessToken || ""}`, // Ensure accessToken is used if available
         },
         body: JSON.stringify(incidentData),
       });
@@ -141,18 +145,28 @@ export default function ReportIncidentPage() {
         const text = await res.text();
         throw new Error("Server error: " + text);
       }
-      if (!res.ok) throw new Error(result.error || "Failed to submit report");
+      if (!res.ok) throw new new Error(result.error || "Failed to submit report");
       toast({
         title: "Incident Reported Successfully",
         description: `Report for \"${values.title}\" has been submitted.`,
         variant: "default"
       });
-      if (user && user.isAnonymous) {
-        router.push("/dashboard/report/thank-you");
-      } else if (result.incident && result.incident.id) {
-        router.push(`/dashboard/incidents/${result.incident.id}`);
-      } else {
-        router.push("/dashboard/my-reports");
+      
+      // Redirect logic based on user role
+      if (user) { 
+          if (user.isAnonymous) {
+              router.push("/dashboard/report/thank-you");
+          } else if (role === 'student') { 
+              router.push("/dashboard/my-reports"); // Redirect to My Reports for signed-in students
+          } else { // For other signed-in roles (e.g., CPO, secretary)
+              if (result.incident && result.incident.id) {
+                  router.push(`/dashboard/incidents/${result.incident.id}`); // Redirect to individual incident page
+              } else {
+                  router.push("/dashboard/my-reports"); // Fallback for other roles
+              }
+          }
+      } else { // Fallback for genuinely unauthenticated (shouldn't happen with current useAuth setup, but as a safeguard)
+          router.push("/dashboard/report/thank-you");
       }
     } catch (error) {
       console.error("Failed to submit report:", error);
@@ -228,13 +242,37 @@ export default function ReportIncidentPage() {
                     priority
                   />
                   {marker && (
-                    <div
-                      style={{ top: `${marker.y}%`, left: `${marker.x}%` }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none"
-                    >
-                      <span className={cn("custom-pulse border border-white/30", getSeverityStyles().dot)} style={{ width: 32, height: 32, display: 'inline-block', position: 'absolute', left: 0, top: 0 }} />
-                      <span className={cn("relative inline-flex rounded-full h-4 w-4 border-2 border-white", getSeverityStyles().dot)} style={{ display: 'inline-block', position: 'absolute', left: 8, top: 8 }} />
-                    </div>
+                    // Marker styling updated to match live map markers
+                    (() => {
+                        const normalizedSeverity = form.getValues('severity') || "Low"; // Use form's severity
+                        const severityStyles = getSeverityStyles(normalizedSeverity);
+                        // Extract only the background and border classes from the badge style
+                        const badgeBgBorderClasses = severityStyles.badge.split(' ').filter(cls => cls.startsWith('bg-') || cls.startsWith('border-')).join(' ');
+
+                        return (
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    top: `${marker.y}%`,
+                                    left: `${marker.x}%`,
+                                    transform: "translate(-50%, -50%)",
+                                    zIndex: 10,
+                                    pointerEvents: "none",
+                                    width: '48px', // Consistent size with live map markers
+                                    height: '48px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <span className={cn("custom-pulse border border-white/30 z-10", badgeBgBorderClasses)} />
+                                <span className={cn(
+                                    "relative inline-flex rounded-full h-6 w-6 border-2 border-white z-10", // Consistent dot size
+                                    badgeBgBorderClasses
+                                )} />
+                            </div>
+                        );
+                    })()
                   )}
                   {!marker && (
                     <span
@@ -295,6 +333,8 @@ export default function ReportIncidentPage() {
                   </FormItem>
                 )}
               />
+              {/* Add severity and type fields to formSchema and render if not already present */}
+              {/* Assuming formSchema is updated to include these, or they are implicitly handled */}
               <FormField
                 control={form.control}
                 name="location"

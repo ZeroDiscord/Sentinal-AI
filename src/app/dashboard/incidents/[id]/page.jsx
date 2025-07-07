@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle, ShieldQuestion, FilePlus, Map as MapIcon, Clock } from "lucide-react"; // Added Clock for new icon
 import IncidentTable from "@/components/incident-table";
-import IncidentDetailsView from "@/components/IncidentDetailsView"; // Import the new details view component
+import IncidentDetailsView from "@/components/incident-details-view"; // Import the new details view component
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 const severityConfig = {
   critical: { color: '#ef4444', label: 'Critical' },
-  high: { color: '#f97316', label: 'High' },
+  high: { color: '#fb7185', label: 'High' },
   moderate: { color: '#f59e0b', label: 'Moderate' },
   low: { color: '#3b82f6', label: 'Low' },
   default: { color: '#6b7280', label: 'Unknown' },
@@ -58,7 +58,6 @@ export default function DashboardPage() {
       }, (err) => {
         setError("Failed to fetch incidents");
         setLoading(false);
-        console.error(err);
       });
       return () => unsub();
     } else if (role === "student") {
@@ -127,9 +126,26 @@ export default function DashboardPage() {
   // --- End New Data Calculations ---
 
   // Handle opening modal for incident details
-  const handleViewIncident = (incidentData) => {
+  const handleViewIncident = async (incidentData) => {
     setSelectedIncidentId(incidentData.id);
     setIsModalOpen(true);
+    // If user is CPO, mark as read for firstReadAt tracking (case-insensitive)
+    if (user && role?.toLowerCase() === 'cpo') {
+      try {
+        const token = user && (await user.getIdToken());
+        const res = await fetch(`/api/incidents/${incidentData.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ readBy: [user.uid] }),
+        });
+        const data = await res.json();
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
   };
 
   // Function to re-fetch incidents after an action in the modal (e.g., assign, resolve)
